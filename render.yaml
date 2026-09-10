@@ -11,7 +11,7 @@ services:
     # 从 GitHub 自动部署
     github:
       repo: DYxiaoyu/huiyingerp
-      branch: master
+      branch: main
       autoDeploy: true
 
     # 构建配置
@@ -21,7 +21,7 @@ services:
     # 启动命令
     startCommand: node dist/server/main.js
 
-    # 环境变量（在 Render Dashboard 也可以手动填，这里填默认值）
+    # 环境变量
     envVars:
       - key: NODE_ENV
         value: production
@@ -30,7 +30,9 @@ services:
       - key: SERVER_PORT
         value: 10000
       - key: DATABASE_URL
-        sync: false   # ← 需要你在 Render Dashboard 填入，格式见下方
+        fromDatabase:
+          name: dpg-dagft1bl550s73bha6v0-a
+          property: connectionString
       - key: LOG_DIR
         value: ./logs
       - key: LOG_REQUEST_BODY
