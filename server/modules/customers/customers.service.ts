@@ -6,7 +6,8 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '@lark-apaas/fullstack-nestjs-core';
+import { DRIZZLE_DATABASE } from '@server/database/database.module';
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { customers, followUps } from '@server/database/schema';
 import { eq, and, count, desc, asc, ilike, or, max, ne, inArray } from 'drizzle-orm';
 import type {

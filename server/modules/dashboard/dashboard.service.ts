@@ -3,7 +3,8 @@ import {
   Inject,
   Logger,
 } from '@nestjs/common';
-import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '@lark-apaas/fullstack-nestjs-core';
+import { DRIZZLE_DATABASE } from '@server/database/database.module';
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq, desc, max } from 'drizzle-orm';
 import { customers, followUps } from '@server/database/schema';
 import {

@@ -1,8 +1,8 @@
 import { APP_FILTER } from '@nestjs/core';
 import { Module } from '@nestjs/common';
-import { PlatformModule } from '@lark-apaas/fullstack-nestjs-core';
 
 import { GlobalExceptionFilter } from './common/filters/exception.filter';
+import { DatabaseModule } from './database/database.module';
 import { ViewModule } from './modules/view/view.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CustomersModule } from './modules/customers/customers.module';
@@ -11,8 +11,8 @@ import { FollowUpsModule } from './modules/follow-ups/follow-ups.module';
 
 @Module({
   imports: [
-    // 平台 Module，提供平台能力
-    PlatformModule.forRoot(),
+    // 独立部署版：使用标准 PostgreSQL + Drizzle，不依赖任何平台能力
+    DatabaseModule,
     // ====== @route-section: business-modules START ======
     // Place all business modules here.Do NOT add fallback modules here.
     AuthModule,

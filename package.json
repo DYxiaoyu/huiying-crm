@@ -31,7 +31,7 @@
     "format": "prettier --write \"{server,client,test}/**/*.{js,ts,tsx,json,md}\"",
     "precommit": "node scripts/hooks/run-precommit.js",
     "prepare": "chmod +x .githooks/pre-commit 2>/dev/null; git config core.hooksPath .githooks 2>/dev/null || true",
-    "postinstall": "fullstack-cli action-plugin init"
+    "postinstall": "node -e \"console.log('postinstall skipped for standalone deployment')\""
   },
   "dependencies": {
     "@lark-apaas/fullstack-nestjs-core": "^1.1.60",
@@ -51,12 +51,14 @@
     "cache-manager": "^6.4.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "cookie-parser": "^1.4.7",
     "crypto-js": "^4.2.0",
     "dayjs": "^1.11.15",
     "dotenv": "^17.2.2",
     "drizzle-orm": "0.44.6",
     "hbs": "^4.2.0",
     "jsonwebtoken": "^9.0.3",
+    "postgres": "^3.4.5",
     "reflect-metadata": "^0.1.14",
     "tslib": "^2.8.1"
   },
@@ -121,6 +123,7 @@
     "@tiptap/pm": "^3.15.3",
     "@tiptap/react": "^3.14.0",
     "@tiptap/starter-kit": "^3.14.0",
+    "@types/cookie-parser": "^1.4.8",
     "@types/crypto-js": "^4.2.2",
     "@types/express": "^5.0.3",
     "@types/hbs": "^4.0.5",

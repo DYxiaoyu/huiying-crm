@@ -5,10 +5,8 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import {
-  DRIZZLE_DATABASE,
-  type PostgresJsDatabase,
-} from '@lark-apaas/fullstack-nestjs-core';
+import { DRIZZLE_DATABASE } from '@server/database/database.module';
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq, desc, and } from 'drizzle-orm';
 import { followUps, customers } from '@server/database/schema';
 import type { FollowUp, CreateFollowUpDto } from '@shared/api.interface';
