@@ -25,7 +25,9 @@ async function bootstrap() {
   app.set('trust proxy', true);
 
   // 注册视图引擎, 渲染 client 目录下的 html 文件
-  app.setBaseViewsDir(join(process.cwd(), 'dist/client'));
+  // 注意：vite 产物中 HTML 位于 dist/client/client/index.html，静态资源位于 dist/client/assets
+  app.setBaseViewsDir(join(process.cwd(), 'dist/client/client'));
+  app.useStaticAssets(join(process.cwd(), 'dist/client'), { index: false });
   app.setViewEngine('html');
   app.engine('html', hbsExpressEngine);
 
