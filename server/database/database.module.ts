@@ -59,6 +59,9 @@ async function ensureSchema(client: postgres.Sql): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_customers_stage ON customers(stage);
     CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
     CREATE INDEX IF NOT EXISTS idx_customers_employee ON customers(employee_id);
+
+    -- 收藏字段（老表升级用，幂等）
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_favorite boolean NOT NULL DEFAULT false;
   `);
 }
 

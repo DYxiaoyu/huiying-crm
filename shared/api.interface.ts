@@ -29,6 +29,7 @@ export interface Customer {
   updatedAt: string;
   lastFollowAt: string | null;
   isOverdue: boolean;
+  isFavorite: boolean;
 }
 
 export interface FollowUp {
@@ -49,6 +50,7 @@ export interface CustomerListQuery {
   stage?: CustomerStage | '';
   sortBy?: 'updatedAt' | 'createdAt' | 'name';
   sortOrder?: 'asc' | 'desc';
+  favoriteOnly?: boolean;
 }
 
 export interface CustomerListResponse {
@@ -74,6 +76,7 @@ export interface UpdateCustomerDto {
   source?: string;
   stage?: CustomerStage;
   remark?: string;
+  isFavorite?: boolean;
 }
 
 export interface DuplicateCheckResult {

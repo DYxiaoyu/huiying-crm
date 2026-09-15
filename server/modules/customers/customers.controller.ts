@@ -37,6 +37,7 @@ export class CustomersController {
     @Query('stage') stage?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: string,
+    @Query('favoriteOnly') favoriteOnly?: string,
   ): Promise<CustomerListResponse> {
     const pageNum = page ? parseInt(page, 10) : 1;
     const pageSizeNum = pageSize ? parseInt(pageSize, 10) : 10;
@@ -54,6 +55,7 @@ export class CustomersController {
         stage: stageFilter,
         sortBy: safeSortBy,
         sortOrder: safeSortOrder,
+        favoriteOnly: favoriteOnly === 'true',
       },
       employee.id,
     );

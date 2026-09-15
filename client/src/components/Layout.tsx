@@ -50,6 +50,26 @@ const NavItem = ({ item }: { item: NavItemConfig }) => {
   );
 };
 
+/** 手机端顶栏导航项（紧凑样式） */
+const MobileNavItem = ({ item }: { item: NavItemConfig }) => {
+  const Icon = item.icon;
+  return (
+    <NavLink
+      to={item.path}
+      end={item.end}
+      className={({ isActive }) =>
+        [
+          'mobile-nav-item flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] transition-colors',
+          isActive ? 'mobile-nav-item--active' : '',
+        ].join(' ')
+      }
+    >
+      <Icon className="w-4 h-4" />
+      <span>{item.label}</span>
+    </NavLink>
+  );
+};
+
 const Layout = () => {
   const { employee, logout } = useAuth();
   const location = useLocation();
@@ -75,11 +95,24 @@ const Layout = () => {
         .sidebar-nav-item--active:hover {
           background-color: ${ACTIVE_BG};
         }
+        .mobile-nav-item {
+          color: #5B6773;
+          background-color: transparent;
+        }
+        .mobile-nav-item:hover {
+          color: ${ACTIVE_BG};
+          background-color: #E8F0EE;
+        }
+        .mobile-nav-item--active {
+          color: ${ACTIVE_BG};
+          background-color: #E4F2EF;
+          font-weight: 600;
+        }
       `}</style>
 
-      {/* 侧边栏 */}
+      {/* ===== 桌面侧边栏（≥768px）===== */}
       <aside
-        className="fixed top-0 left-0 bottom-0 w-[220px] flex flex-col"
+        className="hidden md:flex fixed top-0 left-0 bottom-0 w-[220px] flex-col"
         style={{ backgroundColor: SIDEBAR_BG }}
       >
         {/* Logo 区 */}
@@ -124,14 +157,51 @@ const Layout = () => {
         </div>
       </aside>
 
-      {/* 主内容区 */}
+      {/* ===== 主内容区 ===== */}
       <main
-        className="min-h-screen flex flex-col"
-        style={{ marginLeft: '220px' }}
+        className="min-h-screen flex flex-col md:ml-[220px]"
       >
-        {/* 顶栏 */}
+        {/* 手机顶栏（<768px）：导航 + 用户 */}
         <header
-          className="h-[60px] flex items-center justify-between px-6 bg-white sticky top-0 z-10"
+          className="md:hidden sticky top-0 z-20 flex items-center justify-between gap-2 px-4 h-[52px] bg-white"
+          style={{ borderBottom: `1px solid ${TOPBAR_BORDER}` }}
+        >
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center"
+              style={{ backgroundColor: ACTIVE_BG }}
+            >
+              <LayoutDashboard className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-[13px] font-semibold text-slate-900">
+              客户管理
+            </span>
+          </div>
+          <nav className="flex items-center gap-1 overflow-x-auto">
+            {navItems.map((item) => (
+              <MobileNavItem key={item.path} item={item} />
+            ))}
+          </nav>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-medium"
+              style={{ backgroundColor: AVATAR_BG, color: AVATAR_TEXT }}
+            >
+              {initial}
+            </div>
+            <button
+              onClick={logout}
+              title="退出登录"
+              className="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-[#F2F4F7] transition-colors"
+            >
+              <LogOut className="w-4 h-4" style={{ color: LOGOUT_COLOR }} />
+            </button>
+          </div>
+        </header>
+
+        {/* 桌面顶栏（≥768px） */}
+        <header
+          className="hidden md:flex h-[60px] items-center justify-between px-6 bg-white sticky top-0 z-10"
           style={{ borderBottom: `1px solid ${TOPBAR_BORDER}` }}
         >
           <h1 className="text-[16px] font-semibold text-slate-900">
@@ -151,7 +221,7 @@ const Layout = () => {
         </header>
 
         {/* 页面内容 */}
-        <div className="p-6 flex-1">
+        <div className="p-4 md:p-6 flex-1">
           <Outlet />
         </div>
       </main>

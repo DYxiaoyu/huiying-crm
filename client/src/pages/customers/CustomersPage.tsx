@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search,
   Plus,
@@ -10,6 +10,7 @@ import {
   HardDriveDownload,
   ImagePlus,
   Images,
+  Star,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@lark-apaas/client-toolkit/logger';
@@ -125,10 +126,13 @@ function formatDateTime(value: string | null | undefined): string {
 
 const CustomersPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const urlStage = (searchParams.get('stage') as CustomerStage | null) ?? '';
 
   const [keyword, setKeyword] = useState('');
-  const [stage, setStage] = useState<CustomerStage | ''>('');
+  const [stage, setStage] = useState<CustomerStage | ''>(urlStage);
   const [sortValue, setSortValue] = useState('updatedAt-desc');
+  const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -161,6 +165,7 @@ const CustomersPage = () => {
         stage: stage || undefined,
         sortBy,
         sortOrder,
+        favoriteOnly: favoriteOnly || undefined,
       });
       setItems(res.items);
       setTotal(res.total);
@@ -169,7 +174,7 @@ const CustomersPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, stage, sortBy, sortOrder]);
+  }, [page, pageSize, keyword, stage, sortBy, sortOrder, favoriteOnly]);
 
   useEffect(() => {
     void fetchList();
@@ -230,6 +235,29 @@ const CustomersPage = () => {
   const handleSortChange = (value: string) => {
     setSortValue(value);
     setPage(1);
+  };
+
+  const handleFavoriteFilter = () => {
+    setFavoriteOnly((prev) => !prev);
+    setPage(1);
+  };
+
+  /** 切换收藏状态 */
+  const handleToggleFavorite = async (customer: Customer) => {
+    const next = !customer.isFavorite;
+    try {
+      await customersApi.update(customer.id, { isFavorite: next });
+      setItems((prev) =>
+        prev.map((c) => (c.id === customer.id ? { ...c, isFavorite: next } : c)),
+      );
+      toast.success(next ? `已收藏「${customer.name}」` : `已取消收藏「${customer.name}」`);
+      if (favoriteOnly && !next) {
+        void fetchList();
+      }
+    } catch (error) {
+      logger.error('更新收藏状态失败', error as Error);
+      toast.error('操作失败，请重试');
+    }
   };
 
   const handleExportCsv = () => {
@@ -378,6 +406,22 @@ const CustomersPage = () => {
             </SelectContent>
           </Select>
         </div>
+
+        {/* 只看收藏 */}
+        <button
+          type="button"
+          onClick={handleFavoriteFilter}
+          className={`shrink-0 inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border text-sm font-medium transition-all ${
+            favoriteOnly
+              ? 'border-[#F5B93C] bg-[#FFF7E0] text-[#B8860B]'
+              : 'border-[#E4E7EC] bg-white text-[#5B6773] hover:bg-[#F7F9FA]'
+          }`}
+        >
+          <Star
+            className={`size-4 ${favoriteOnly ? 'fill-[#F5B93C] text-[#F5B93C]' : ''}`}
+          />
+          <span>只看收藏</span>
+        </button>
       </div>
 
       {/* 列表区 - 卡片式表格 */}
@@ -443,6 +487,20 @@ const CustomersPage = () => {
                     >
                       <TableCell className="px-4 py-3">
                         <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleFavorite(customer)}
+                            title={customer.isFavorite ? '取消收藏' : '收藏'}
+                            className={`shrink-0 transition-all ${
+                              customer.isFavorite
+                                ? 'text-[#F5B93C]'
+                                : 'text-[#D0D5DD] hover:text-[#F5B93C]'
+                            }`}
+                          >
+                            <Star
+                              className={`size-4 ${customer.isFavorite ? 'fill-[#F5B93C]' : ''}`}
+                            />
+                          </button>
                           <span className="font-semibold text-[#1D2733]">
                             {customer.name}
                           </span>
@@ -540,8 +598,22 @@ const CustomersPage = () => {
                     className="p-4 border-b border-[#EAECF0] last:border-b-0 hover:bg-[#F7F9FA] transition-colors"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleFavorite(customer)}
+                            title={customer.isFavorite ? '取消收藏' : '收藏'}
+                            className={`shrink-0 transition-all ${
+                              customer.isFavorite
+                                ? 'text-[#F5B93C]'
+                                : 'text-[#D0D5DD] hover:text-[#F5B93C]'
+                            }`}
+                          >
+                            <Star
+                              className={`size-4 ${customer.isFavorite ? 'fill-[#F5B93C]' : ''}`}
+                            />
+                          </button>
                           <span className="font-semibold text-[#1D2733] text-[15px]">
                             {customer.name}
                           </span>
@@ -564,6 +636,19 @@ const CustomersPage = () => {
                           <div className="flex items-center gap-2">
                             <span className="text-[#98A2B3] w-8">电话</span>
                             <span>{customer.phone || '-'}</span>
+                            {customer.phone && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void navigator.clipboard?.writeText(customer.phone ?? '');
+                                  toast.success('电话已复制');
+                                }}
+                                title="复制电话"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] text-[#0E7C6B] bg-[#E5F4EC] active:bg-[#0E7C6B] active:text-white transition-all"
+                              >
+                                复制
+                              </button>
+                            )}
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-[#98A2B3] w-8">公司</span>

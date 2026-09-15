@@ -284,11 +284,8 @@ const CustomerDetailPage = () => {
         <span>返回客户列表</span>
       </Link>
 
-      {/* 两栏布局 */}
-      <div
-        className="grid items-start"
-        style={{ gridTemplateColumns: '1fr 1.4fr', gap: '18px' }}
-      >
+      {/* 两栏布局（手机单列） */}
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_1.4fr] items-start gap-4 md:gap-[18px]">
         {/* 左侧：客户信息卡 */}
         <div className="rounded-[10px] border border-[#E4E7EC] bg-white shadow-sm">
           {/* 卡片头 */}

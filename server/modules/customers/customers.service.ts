@@ -26,6 +26,7 @@ interface ListParams {
   stage?: CustomerStage;
   sortBy?: 'updatedAt' | 'createdAt' | 'name';
   sortOrder?: 'asc' | 'desc';
+  favoriteOnly?: boolean;
 }
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -37,7 +38,7 @@ export class CustomersService {
   constructor(@Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase) {}
 
   async list(params: ListParams, employeeId: string): Promise<CustomerListResponse> {
-    const { page, pageSize: rawPageSize, keyword, stage, sortBy, sortOrder } = params;
+    const { page, pageSize: rawPageSize, keyword, stage, sortBy, sortOrder, favoriteOnly } = params;
     const safePage = Math.max(1, page);
     const safePageSize = Math.min(50, Math.max(1, rawPageSize));
     const offset = (safePage - 1) * safePageSize;
@@ -53,6 +54,9 @@ export class CustomersService {
     }
     if (stage) {
       conditions.push(eq(customers.stage, stage));
+    }
+    if (favoriteOnly) {
+      conditions.push(eq(customers.isFavorite, true));
     }
     const whereClause = and(...conditions);
 
@@ -176,6 +180,7 @@ export class CustomersService {
     if (dto.source !== undefined) patch.source = dto.source;
     if (dto.stage !== undefined) patch.stage = dto.stage;
     if (dto.remark !== undefined) patch.remark = dto.remark;
+    if (dto.isFavorite !== undefined) patch.isFavorite = dto.isFavorite;
 
     if (Object.keys(patch).length === 0) {
       throw new BadRequestException('未提供可更新字段');
@@ -425,6 +430,7 @@ export class CustomersService {
       updatedAt: row.updatedAt.toISOString(),
       lastFollowAt: lastFollowAt ? lastFollowAt.toISOString() : null,
       isOverdue,
+      isFavorite: row.isFavorite ?? false,
     };
   }
 }

@@ -29,28 +29,29 @@ interface StatCardProps {
   label: string;
   value: number;
   color: string;
+  onClick?: () => void;
 }
 
-function StatCard({ label, value, color }: StatCardProps) {
+function StatCard({ label, value, color, onClick }: StatCardProps) {
   return (
     <div
+      onClick={onClick}
+      className={`rounded-[10px] p-3 md:p-4 ${
+        onClick ? 'cursor-pointer transition-shadow hover:shadow-md active:scale-[.98]' : ''
+      }`}
       style={{
         background: '#fff',
         border: '1px solid #E4E7EC',
-        borderRadius: '10px',
         boxShadow:
           '0 1px 3px rgba(16,24,40,.08), 0 1px 2px rgba(16,24,40,.04)',
-        padding: '16px',
       }}
     >
-      <div style={{ fontSize: '13px', color: '#5B6773' }}>{label}</div>
+      <div className="text-[12px] md:text-[13px]" style={{ color: '#5B6773' }}>
+        {label}
+      </div>
       <div
-        style={{
-          fontSize: '26px',
-          fontWeight: 700,
-          marginTop: '4px',
-          color,
-        }}
+        className="text-[24px] md:text-[26px] font-bold mt-1"
+        style={{ color }}
       >
         {value}
       </div>
@@ -139,40 +140,36 @@ export default function DashboardPage() {
     1,
   );
 
-  const statCards: { label: string; value: number; color: string }[] = [
+  const statCards: { label: string; value: number; color: string; stage?: CustomerStage }[] = [
     { label: '客户总数', value: stats.total, color: '#1D2733' },
     { label: '待跟进', value: stats.overdue, color: '#DC2626' },
-    { label: '跟进中', value: stats.following, color: '#D97706' },
-    { label: '已成交', value: stats.closed, color: '#059669' },
-    { label: '新客户', value: stats.newCustomers, color: '#64748B' },
-    { label: '已流失', value: stats.lost, color: '#DC2626' },
+    { label: '跟进中', value: stats.following, color: '#D97706', stage: 'following' },
+    { label: '已成交', value: stats.closed, color: '#059669', stage: 'closed' },
+    { label: '新客户', value: stats.newCustomers, color: '#64748B', stage: 'new' },
+    { label: '已流失', value: stats.lost, color: '#DC2626', stage: 'lost' },
   ];
+
+  const goToList = (stage?: CustomerStage) => {
+    navigate(stage ? `/customers?stage=${stage}` : '/customers');
+  };
 
   return (
     <div
+      className="flex flex-col gap-4 md:gap-4"
       style={{
-        padding: '24px',
         background: '#F2F4F7',
         minHeight: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '16px',
       }}
     >
-      {/* 统计卡片 */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))',
-          gap: '14px',
-        }}
-      >
+      {/* 统计卡片：手机 2 列，平板 3 列，桌面 6 列；点击直达客户列表 */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-[14px]">
         {statCards.map((card) => (
           <StatCard
             key={card.label}
             label={card.label}
             value={card.value}
             color={card.color}
+            onClick={() => goToList(card.stage)}
           />
         ))}
       </div>
@@ -291,10 +288,8 @@ export default function DashboardPage() {
             <li
               key={followUp.id}
               onClick={() => navigate(`/customers/${followUp.customerId}`)}
+              className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3"
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
                 padding: '10px 0',
                 borderBottom:
                   index === recentFollowUps.length - 1
@@ -304,8 +299,8 @@ export default function DashboardPage() {
               }}
             >
               <span
+                className="text-[13px] md:text-[14px] font-medium"
                 style={{
-                  fontWeight: 500,
                   minWidth: '110px',
                   flexShrink: 0,
                 }}
@@ -313,6 +308,7 @@ export default function DashboardPage() {
                 {followUp.customerName}
               </span>
               <span
+                className="text-[12px] md:text-[13px]"
                 style={{
                   color: '#5B6773',
                   flex: 1,
@@ -324,9 +320,9 @@ export default function DashboardPage() {
                 {followUp.content}
               </span>
               <span
+                className="text-[11px] md:text-[12px]"
                 style={{
                   color: '#98A2B3',
-                  fontSize: '12px',
                   flexShrink: 0,
                 }}
               >
