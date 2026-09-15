@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft, Trash2, ImagePlus, Images } from 'lucide-react';
+import { toast } from 'sonner';
 import { logger } from '@lark-apaas/client-toolkit/logger';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -489,6 +490,62 @@ const CustomerDetailPage = () => {
                 </form>
               </Form>
             )}
+          </div>
+        </div>
+
+        {/* 客户图片卡 */}
+        <div className="rounded-[10px] border border-[#E4E7EC] bg-white shadow-sm overflow-hidden">
+          <div
+            className="flex items-center justify-between border-b border-[#E4E7EC]"
+            style={{ padding: '14px 18px' }}
+          >
+            <div className="text-[14px] font-semibold text-[#1D2733]">
+              客户图片
+            </div>
+            <div className="text-[12px] text-[#98A2B3]">
+              证件、样品、聊天截图等
+            </div>
+          </div>
+          <div style={{ padding: '18px' }}>
+            <div
+              className="flex flex-col items-center justify-center rounded-[10px] border-2 border-dashed py-8 text-center transition-colors"
+              style={{ borderColor: '#D0D5DD', background: '#FAFBFC' }}
+            >
+              <div
+                className="flex items-center justify-center size-12 rounded-full mb-3"
+                style={{ background: '#E5F4EC' }}
+              >
+                <ImagePlus className="size-6 text-[#0E7C6B]" />
+              </div>
+              <div className="text-[14px] font-medium text-[#1D2733]">
+                暂无客户图片
+              </div>
+              <div className="mt-1 text-[12px] text-[#98A2B3]">
+                上传后老板和员工都能查看
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  toast.info(`「${customer?.name ?? '该客户'}」的图片上传功能即将上线`)
+                }
+                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-[13px] font-medium text-[#0E7C6B] bg-[#E5F4EC] hover:bg-[#0E7C6B] hover:text-white transition-all"
+              >
+                <ImagePlus className="size-4" />
+                上传图片
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  toast.info(`「${customer?.name ?? '该客户'}」暂无已上传图片`)
+                }
+                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-[13px] font-medium text-[#2563EB] bg-[#E8EFFD] hover:bg-[#2563EB] hover:text-white transition-all"
+              >
+                <Images className="size-4" />
+                预览图片
+              </button>
+            </div>
           </div>
         </div>
 

@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 
+// 最先 import：模块加载时即注册 Authorization 拦截器（必须在任何 API 请求前）
+import '@/api/token-interceptor';
+
 import { AppContainer } from '@lark-apaas/client-toolkit/components/AppContainer';
 import { ErrorRender } from '@lark-apaas/client-toolkit/components/ErrorRender';
 

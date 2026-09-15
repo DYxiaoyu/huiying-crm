@@ -8,7 +8,10 @@ import {
   Trash2,
   Download,
   HardDriveDownload,
+  ImagePlus,
+  Images,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { logger } from '@lark-apaas/client-toolkit/logger';
 
 import { Button } from '@/components/ui/button';
@@ -240,6 +243,16 @@ const CustomersPage = () => {
     document.body.removeChild(a);
   };
 
+  // 图片上传（占位：按钮已就位，上传能力待接入）
+  const handleUploadImage = (customer: Customer) => {
+    toast.info(`「${customer.name}」的图片上传功能即将上线`);
+  };
+
+  // 图片预览（占位）
+  const handlePreviewImage = (customer: Customer) => {
+    toast.info(`「${customer.name}」暂无已上传图片`);
+  };
+
   const handleExportBackup = () => {
     const url = customersApi.getBackupUrl();
     const a = document.createElement('a');
@@ -262,36 +275,58 @@ const CustomersPage = () => {
   return (
     <div className="p-6 flex flex-col gap-6">
       {/* 页面标题 */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900">我的客户</h1>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={handleExportBackup}
-            data-ai-section-type="button"
-            className="inline-flex items-center gap-2 px-[14px] py-2 rounded-lg border border-[#E4E7EC] bg-white text-[#1D2733] text-sm font-medium hover:bg-[#F2F4F7] transition-colors"
-          >
-            <HardDriveDownload className="size-4" />
-            <span>备份数据</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            data-ai-section-type="button"
-            className="inline-flex items-center gap-2 px-[14px] py-2 rounded-lg border border-[#E4E7EC] bg-white text-[#1D2733] text-sm font-medium hover:bg-[#F2F4F7] transition-colors"
-          >
-            <Download className="size-4" />
-            <span>导出 CSV</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleAdd}
-            data-ai-section-type="button"
-            className="inline-flex items-center gap-2 px-[14px] py-2 rounded-lg bg-[#0E7C6B] text-white text-sm font-medium hover:opacity-90 transition-opacity"
-          >
-            <Plus className="size-4" />
-            <span>新增客户</span>
-          </button>
+      <div
+        className="relative overflow-hidden rounded-2xl px-6 py-5 text-white shadow-lg"
+        style={{
+          background: 'linear-gradient(120deg, #0B6356 0%, #0E7C6B 45%, #14A085 100%)',
+          boxShadow: '0 8px 24px rgba(11,99,86,0.25)',
+        }}
+      >
+        {/* 装饰光斑 */}
+        <div
+          className="absolute -right-8 -top-10 size-36 rounded-full opacity-20"
+          style={{ background: 'radial-gradient(circle, #ffffff 0%, transparent 70%)' }}
+        />
+        <div
+          className="absolute right-24 -bottom-12 size-28 rounded-full opacity-10"
+          style={{ background: 'radial-gradient(circle, #ffffff 0%, transparent 70%)' }}
+        />
+        <div className="relative flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold tracking-wide">我的客户</h1>
+            <p className="mt-1 text-[13px] text-white/70">
+              共 {total} 位客户 · 管理跟进与阶段流转
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExportBackup}
+              data-ai-section-type="button"
+              className="inline-flex items-center gap-2 px-[14px] py-2 rounded-lg bg-white/15 border border-white/25 text-white text-sm font-medium backdrop-blur hover:bg-white/25 transition-all"
+            >
+              <HardDriveDownload className="size-4" />
+              <span>备份数据</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              data-ai-section-type="button"
+              className="inline-flex items-center gap-2 px-[14px] py-2 rounded-lg bg-white/15 border border-white/25 text-white text-sm font-medium backdrop-blur hover:bg-white/25 transition-all"
+            >
+              <Download className="size-4" />
+              <span>导出 CSV</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleAdd}
+              data-ai-section-type="button"
+              className="inline-flex items-center gap-2 px-[16px] py-2 rounded-lg bg-white text-[#0B6356] text-sm font-semibold shadow-md hover:shadow-lg hover:-translate-y-px transition-all"
+            >
+              <Plus className="size-4" />
+              <span>新增客户</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -370,6 +405,8 @@ const CustomersPage = () => {
           </div>
         ) : (
           <>
+            {/* ===== 桌面端表格 ===== */}
+            <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-[#E4E7EC] hover:bg-transparent bg-[#FAFBFC]">
@@ -441,11 +478,28 @@ const CustomersPage = () => {
                       </TableCell>
                       <TableCell className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleUploadImage(customer)}
+                            title="上传图片"
+                            className="inline-flex items-center justify-center size-8 rounded-lg text-[#0E7C6B] bg-[#E5F4EC] hover:bg-[#0E7C6B] hover:text-white transition-all"
+                          >
+                            <ImagePlus className="size-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePreviewImage(customer)}
+                            title="预览图片"
+                            className="inline-flex items-center justify-center size-8 rounded-lg text-[#2563EB] bg-[#E8EFFD] hover:bg-[#2563EB] hover:text-white transition-all"
+                          >
+                            <Images className="size-4" />
+                          </button>
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => handleView(customer.id)}
                             title="查看"
+                            className="hover:bg-[#F2F4F7]"
                           >
                             <Eye className="size-4" />
                           </Button>
@@ -454,6 +508,7 @@ const CustomersPage = () => {
                             size="icon"
                             onClick={() => handleEdit(customer)}
                             title="编辑"
+                            className="hover:bg-[#F2F4F7]"
                           >
                             <Pencil className="size-4" />
                           </Button>
@@ -462,7 +517,7 @@ const CustomersPage = () => {
                             size="icon"
                             onClick={() => handleDeleteClick(customer.id)}
                             title="删除"
-                            className="text-rose-600 hover:text-rose-700"
+                            className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
                           >
                             <Trash2 className="size-4" />
                           </Button>
@@ -473,6 +528,103 @@ const CustomersPage = () => {
                 })}
               </TableBody>
             </Table>
+            </div>
+
+            {/* ===== 手机端卡片列表 ===== */}
+            <div className="md:hidden">
+              {items.map((customer: Customer) => {
+                const stageBadge = STAGE_BADGE_MAP[customer.stage];
+                return (
+                  <div
+                    key={customer.id}
+                    className="p-4 border-b border-[#EAECF0] last:border-b-0 hover:bg-[#F7F9FA] transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-[#1D2733] text-[15px]">
+                            {customer.name}
+                          </span>
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${stageBadge.bgColor} ${stageBadge.textColor}`}
+                          >
+                            <span
+                              className={`size-1.5 rounded-full ${stageBadge.dotColor}`}
+                            />
+                            {stageBadge.label}
+                          </span>
+                          {customer.isOverdue && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FDECEC] text-[#DC2626] text-[11px] font-medium">
+                              <span className="size-1.5 rounded-full bg-[#DC2626]" />
+                              待跟进
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-2 space-y-1 text-[13px] text-[#5B6773]">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#98A2B3] w-8">电话</span>
+                            <span>{customer.phone || '-'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#98A2B3] w-8">公司</span>
+                            <span className="truncate">{customer.company || '-'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#98A2B3] w-8">来源</span>
+                            <span>{customer.source || '-'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#98A2B3] w-8">跟进</span>
+                            <span>
+                              {formatDateTime(customer.lastFollowAt ?? customer.updatedAt)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleUploadImage(customer)}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-[13px] font-medium text-[#0E7C6B] bg-[#E5F4EC] active:bg-[#0E7C6B] active:text-white transition-all"
+                      >
+                        <ImagePlus className="size-4" />
+                        上传图片
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handlePreviewImage(customer)}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-[13px] font-medium text-[#2563EB] bg-[#E8EFFD] active:bg-[#2563EB] active:text-white transition-all"
+                      >
+                        <Images className="size-4" />
+                        预览图片
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleView(customer.id)}
+                        className="inline-flex items-center justify-center size-9 rounded-lg text-[#5B6773] bg-[#F2F4F7] active:bg-[#E4E7EC] transition-all"
+                      >
+                        <Eye className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(customer)}
+                        className="inline-flex items-center justify-center size-9 rounded-lg text-[#5B6773] bg-[#F2F4F7] active:bg-[#E4E7EC] transition-all"
+                      >
+                        <Pencil className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteClick(customer.id)}
+                        className="inline-flex items-center justify-center size-9 rounded-lg text-rose-600 bg-rose-50 active:bg-rose-100 transition-all"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
             {/* 分页 */}
             <div className="flex items-center justify-end gap-[10px] px-4 py-3 bg-white border-t border-[#E4E7EC] rounded-b-[10px]">
