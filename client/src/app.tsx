@@ -7,6 +7,8 @@ import NotFound from './pages/NotFound/NotFound';
 import CustomersPage from './pages/customers/CustomersPage';
 import CustomerDetailPage from './pages/customer-detail/CustomerDetailPage';
 import SuppliersPage from './pages/suppliers/SuppliersPage';
+import SupplierKeysPage from './pages/supplier-keys/SupplierKeysPage';
+import SupplierApplyPage from './pages/supplier-apply/SupplierApplyPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import LoginPage from './pages/login/LoginPage';
 
@@ -22,6 +24,11 @@ const RoutesComponent = () => {
   return (
     <AuthProvider>
       <Routes>
+        {/* 公开页：供应商提交（无需登录） */}
+        <Route path="/join" element={<SupplierApplyPage />} />
+        {/* 兼容旧链接 */}
+        <Route path="/supplier-register" element={<Navigate to="/join" replace />} />
+
         <Route path="/login" element={<LoginPage />} />
         <Route
           element={
@@ -34,6 +41,7 @@ const RoutesComponent = () => {
           <Route path="customers" element={<CustomersPage />} />
           <Route path="customers/:id" element={<CustomerDetailPage />} />
           <Route path="suppliers" element={<SuppliersPage />} />
+          <Route path="supplier-keys" element={<SupplierKeysPage />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>

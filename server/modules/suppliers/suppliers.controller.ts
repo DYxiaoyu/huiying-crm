@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { SuppliersService } from './suppliers.service';
 import { EmployeeAuthGuard } from '@server/modules/auth/employee-auth.guard';
@@ -19,6 +20,7 @@ import type {
   UpdateSupplierProductDto,
   ImportSupplierItem,
   ImportResult,
+  SupplierStatus,
 } from '@shared/api.interface';
 
 @Controller('api/suppliers')
@@ -28,11 +30,11 @@ export class SuppliersController {
 
   @Get()
   async list(
-    @CurrentEmployee() employee: { id: string },
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('keyword') keyword?: string,
     @Query('category') category?: string,
+    @Query('status') status?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: string,
   ): Promise<SupplierListResponse> {
@@ -42,23 +44,25 @@ export class SuppliersController {
       ? sortBy as 'createdAt' | 'productName' | 'price'
       : 'updatedAt';
     const safeSortOrder = sortOrder === 'asc' ? 'asc' : 'desc';
+    const safeStatus: SupplierStatus | undefined =
+      status === 'pending' || status === 'approved' || status === 'rejected'
+        ? (status as SupplierStatus)
+        : undefined;
 
-    return this.suppliersService.list(
-      {
-        page: pageNum,
-        pageSize: pageSizeNum,
-        keyword,
-        category,
-        sortBy: safeSortBy,
-        sortOrder: safeSortOrder,
-      },
-      employee.id,
-    );
+    return this.suppliersService.list({
+      page: pageNum,
+      pageSize: pageSizeNum,
+      keyword,
+      category,
+      status: safeStatus,
+      sortBy: safeSortBy,
+      sortOrder: safeSortOrder,
+    });
   }
 
   @Get('categories')
-  async categories(@CurrentEmployee() employee: { id: string }): Promise<string[]> {
-    return this.suppliersService.categories(employee.id);
+  async categories(): Promise<string[]> {
+    return this.suppliersService.categories();
   }
 
   @Post('import')
@@ -79,18 +83,30 @@ export class SuppliersController {
 
   @Patch(':id')
   async update(
-    @CurrentEmployee() employee: { id: string },
     @Param('id') id: string,
     @Body() dto: UpdateSupplierProductDto,
   ): Promise<SupplierProduct> {
-    return this.suppliersService.update(id, dto, employee.id);
+    return this.suppliersService.update(id, dto);
+  }
+
+  @Post(':id/approve')
+  async approve(@Param('id') id: string): Promise<SupplierProduct> {
+    return this.suppliersService.approve(id);
+  }
+
+  @Post(':id/reject')
+  async reject(
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ): Promise<SupplierProduct> {
+    if (!body?.reason || !body.reason.trim()) {
+      throw new BadRequestException('请填写驳回理由');
+    }
+    return this.suppliersService.reject(id, body.reason);
   }
 
   @Delete(':id')
-  async remove(
-    @CurrentEmployee() employee: { id: string },
-    @Param('id') id: string,
-  ): Promise<void> {
-    return this.suppliersService.remove(id, employee.id);
+  async remove(@Param('id') id: string): Promise<void> {
+    return this.suppliersService.remove(id);
   }
 }

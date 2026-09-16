@@ -7,6 +7,8 @@ import { ViewModule } from './modules/view/view.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
+import { SupplierPublicModule } from './modules/supplier-public/supplier-public.module';
+import { SupplierKeysModule } from './modules/supplier-keys/supplier-keys.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { FollowUpsModule } from './modules/follow-ups/follow-ups.module';
 
@@ -19,6 +21,8 @@ import { FollowUpsModule } from './modules/follow-ups/follow-ups.module';
     AuthModule,
     CustomersModule,
     SuppliersModule,
+    SupplierPublicModule,
+    SupplierKeysModule,
     DashboardModule,
     FollowUpsModule,
     // ====== @route-section: business-modules END ======

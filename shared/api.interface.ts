@@ -131,6 +131,15 @@ export interface DashboardResponse {
 
 // ===== 供应商商品 =====
 
+export type SupplierStatus = 'pending' | 'approved' | 'rejected';
+
+export interface SupplierFile {
+  name: string;
+  mime: string;
+  size: number;
+  data: string; // base64
+}
+
 export interface SupplierProduct {
   id: string;
   productName: string;
@@ -141,6 +150,17 @@ export interface SupplierProduct {
   spec: string | null;
   imageUrl: string | null;
   remark: string | null;
+  // 供应商联系信息（公开提交时填写）
+  contactName: string | null;
+  contactPhone: string | null;
+  wechat: string | null;
+  address: string | null;
+  mainCategory: string | null;
+  productUrl: string | null;
+  files: SupplierFile[] | null;
+  status: SupplierStatus;
+  rejectReason: string | null;
+  submitKey: string | null;
   employeeId: string;
   createdAt: string;
   updatedAt: string;
@@ -151,6 +171,7 @@ export interface SupplierListQuery {
   pageSize?: number;
   keyword?: string;
   category?: string;
+  status?: SupplierStatus | '';
   sortBy?: 'updatedAt' | 'createdAt' | 'productName' | 'price';
   sortOrder?: 'asc' | 'desc';
 }
@@ -172,6 +193,12 @@ export interface CreateSupplierProductDto {
   spec?: string;
   imageUrl?: string;
   remark?: string;
+  contactName?: string;
+  contactPhone?: string;
+  wechat?: string;
+  address?: string;
+  mainCategory?: string;
+  productUrl?: string;
 }
 
 export interface UpdateSupplierProductDto {
@@ -183,6 +210,12 @@ export interface UpdateSupplierProductDto {
   spec?: string;
   imageUrl?: string;
   remark?: string;
+  contactName?: string;
+  contactPhone?: string;
+  wechat?: string;
+  address?: string;
+  mainCategory?: string;
+  productUrl?: string;
 }
 
 export interface ImportResult {
@@ -208,4 +241,45 @@ export interface ImportSupplierItem {
   unit?: string;
   spec?: string;
   remark?: string;
+}
+
+// ===== 供应商公开提交 =====
+
+export interface PublicApplyDto {
+  key: string;
+  supplierName: string;
+  contactName: string;
+  contactPhone: string;
+  wechat?: string;
+  address?: string;
+  mainCategory?: string;
+  productName: string;
+  price?: string;
+  unit?: string;
+  spec?: string;
+  productUrl?: string;
+  remark?: string;
+  imageData?: string; // base64 图片
+  files?: SupplierFile[];
+}
+
+export interface PublicApplyResponse {
+  ok: boolean;
+  appliedId?: string;
+  message?: string;
+}
+
+// ===== 供应商密钥 =====
+
+export interface SupplierKey {
+  id: string;
+  key: string;
+  label: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSupplierKeyDto {
+  label: string;
 }

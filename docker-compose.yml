@@ -1,0 +1,41 @@
+# docker-compose.yml - 一键部署：数据库 + 应用
+# 用法：在服务器上执行  docker compose up -d  （首次构建约 5-10 分钟）
+# 访问：http://服务器IP   （80 端口已自动映射到应用）
+
+services:
+  # ---------- PostgreSQL 数据库 ----------
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: customer_crm
+      POSTGRES_PASSWORD: change_this_password   # ★ 建议改成你自己的强密码
+      POSTGRES_DB: customer_crm
+    volumes:
+      - pgdata:/var/lib/postgresql/data          # 数据持久化，容器重建也不丢
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U customer_crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # ---------- 应用本体 ----------
+  app:
+    build: .
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy               # 等数据库就绪再启动应用
+    environment:
+      NODE_ENV: production
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 10000
+      DATABASE_URL: postgres://customer_crm:change_this_password@db:5432/customer_crm
+      LOG_DIR: /app/logs
+      LOG_REQUEST_BODY: "true"
+      LOG_RESPONSE_BODY: "true"
+    ports:
+      - "80:10000"                               # 访问 http://服务器IP 即打开系统
+
+volumes:
+  pgdata:

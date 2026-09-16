@@ -90,3 +90,28 @@ export async function importItems(
     throw error;
   }
 }
+
+export async function approve(id: string): Promise<SupplierProduct> {
+  try {
+    const { data } = await axiosForBackend.post<SupplierProduct>(
+      `/api/suppliers/${id}/approve`
+    );
+    return data;
+  } catch (error) {
+    logger.error(`审核通过失败: ${id}`, error as Error);
+    throw error;
+  }
+}
+
+export async function reject(id: string, reason: string): Promise<SupplierProduct> {
+  try {
+    const { data } = await axiosForBackend.post<SupplierProduct>(
+      `/api/suppliers/${id}/reject`,
+      { reason }
+    );
+    return data;
+  } catch (error) {
+    logger.error(`审核驳回失败: ${id}`, error as Error);
+    throw error;
+  }
+}

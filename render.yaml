@@ -1,4 +1,10 @@
 # render.yaml - Render 自动化部署配置
+# 用法：把本项目推到你的 GitHub 仓库后，在 Render 控制台点
+#   New +  →  Blueprint  →  选择你的 GitHub 仓库
+# Render 会按本文件自动创建 Web 服务 + PostgreSQL 数据库，并自动接通 DATABASE_URL。
+# 参考文档: https://render.com/docs/yaml
+
+# 数据库（自动创建，无需手动去建）
 databases:
   - name: customer-crm-db
     databaseName: customer_crm
@@ -12,15 +18,18 @@ services:
     region: singapore
     plan: free
 
+    # ★ 重要：改成你自己的 GitHub 仓库，格式为「用户名/仓库名」
     github:
-      repo: DYxiaoyu/huiyingerp
+      repo: your-github-name/your-repo-name
       branch: main
       autoDeploy: true
 
+    # 构建与启动
     buildCommand: npm ci && npm run build:prod
     healthCheckPath: /api
     startCommand: node dist/server/main.js
 
+    # 环境变量（DATABASE_URL 自动取自上方数据库实例，无需手填）
     envVars:
       - key: NODE_ENV
         value: production

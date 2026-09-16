@@ -9,6 +9,13 @@ import {
   Store,
   Tag,
   Ruler,
+  Phone,
+  ExternalLink,
+  Paperclip,
+  Check,
+  XCircle,
+  FileText,
+  Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@lark-apaas/client-toolkit/logger';
@@ -43,7 +50,7 @@ import {
 import * as suppliersApi from '@/api/suppliers';
 import { csvToObjects } from '@/utils/csv';
 import { SupplierDialog } from './SupplierDialog';
-import type { SupplierProduct } from '@shared/api.interface';
+import type { SupplierProduct, SupplierStatus, SupplierFile } from '@shared/api.interface';
 
 const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: 'updatedAt-desc', label: '按更新时间' },
@@ -51,10 +58,24 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: 'productName-asc', label: '按商品名称' },
 ];
 
+const STATUS_OPTIONS: { value: SupplierStatus | ''; label: string }[] = [
+  { value: '', label: '全部状态' },
+  { value: 'pending', label: '待审核' },
+  { value: 'approved', label: '已通过' },
+  { value: 'rejected', label: '已驳回' },
+];
+
+const STATUS_STYLE: Record<SupplierStatus, { label: string; cls: string }> = {
+  pending: { label: '待审核', cls: 'bg-amber-500/90 text-white' },
+  approved: { label: '已通过', cls: 'bg-emerald-500/90 text-white' },
+  rejected: { label: '已驳回', cls: 'bg-rose-500/90 text-white' },
+};
+
 const SuppliersPage = () => {
   const [keyword, setKeyword] = useState('');
   const [category, setCategory] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<SupplierStatus | ''>('');
   const [sortValue, setSortValue] = useState('updatedAt-desc');
   const [page, setPage] = useState(1);
   const pageSize = 12;
@@ -71,6 +92,16 @@ const SuppliersPage = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectingProduct, setRejectingProduct] = useState<SupplierProduct | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejecting, setRejecting] = useState(false);
+
+  const [filesDialogOpen, setFilesDialogOpen] = useState(false);
+  const [filesOfProduct, setFilesOfProduct] = useState<{ name: string; files: SupplierFile[] } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -90,6 +121,7 @@ const SuppliersPage = () => {
         pageSize,
         keyword: keyword || undefined,
         category: category || undefined,
+        status: statusFilter || undefined,
         sortBy,
         sortOrder,
       });
@@ -101,7 +133,7 @@ const SuppliersPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, category, sortBy, sortOrder]);
+  }, [page, pageSize, keyword, category, statusFilter, sortBy, sortOrder]);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -154,6 +186,46 @@ const SuppliersPage = () => {
       logger.error('删除商品失败', error as Error);
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleApprove = async (id: string) => {
+    setApprovingId(id);
+    try {
+      await suppliersApi.approve(id);
+      toast.success('已通过，商品已上架');
+      void fetchList();
+    } catch (error) {
+      logger.error('审核通过失败', error as Error);
+      toast.error('操作失败，请重试');
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleRejectClick = (product: SupplierProduct) => {
+    setRejectingProduct(product);
+    setRejectReason('');
+    setRejectDialogOpen(true);
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!rejectingProduct) return;
+    if (!rejectReason.trim()) {
+      toast.error('请填写驳回理由');
+      return;
+    }
+    setRejecting(true);
+    try {
+      await suppliersApi.reject(rejectingProduct.id, rejectReason.trim());
+      setRejectDialogOpen(false);
+      toast.success('已驳回');
+      void fetchList();
+    } catch (error) {
+      logger.error('审核驳回失败', error as Error);
+      toast.error('操作失败，请重试');
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -307,6 +379,21 @@ const SuppliersPage = () => {
         </div>
 
         <div className="shrink-0">
+          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as SupplierStatus | ''); setPage(1); }}>
+            <SelectTrigger className="min-w-[130px] h-9 px-3 rounded-lg border border-[#E4E7EC] bg-white text-sm text-[#1D2733]">
+              <SelectValue placeholder="全部状态" />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="shrink-0">
           <Select value={sortValue} onValueChange={(v) => { setSortValue(v); setPage(1); }}>
             <SelectTrigger className="min-w-[130px] h-9 px-3 rounded-lg border border-[#E4E7EC] bg-white text-sm text-[#1D2733]">
               <SelectValue placeholder="排序方式" />
@@ -348,105 +435,185 @@ const SuppliersPage = () => {
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-              {items.map((product) => (
-                <div
-                  key={product.id}
-                  className="group relative flex flex-col rounded-xl border border-[#EAECF0] overflow-hidden hover:shadow-md hover:-translate-y-px transition-all"
-                >
-                  {/* 商品图区 */}
+              {items.map((product) => {
+                const st = STATUS_STYLE[product.status] || STATUS_STYLE.pending;
+                const showApprove = product.status === 'pending' || product.status === 'rejected';
+                const showReject = product.status === 'pending' || product.status === 'approved';
+                return (
                   <div
-                    className="relative aspect-[4/3] flex items-center justify-center"
-                    style={{
-                      background: 'linear-gradient(135deg, #FEF3E2 0%, #FCE4C8 100%)',
-                    }}
+                    key={product.id}
+                    className="group relative flex flex-col rounded-xl border border-[#EAECF0] overflow-hidden hover:shadow-md hover:-translate-y-px transition-all"
                   >
-                    {product.imageUrl ? (
-                      <img
-                        src={product.imageUrl}
-                        alt={product.productName}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center gap-1.5 text-[#D97706]/60">
-                        <Package className="size-9" />
-                        <span className="text-[11px]">暂无图片</span>
-                      </div>
-                    )}
-                    {product.category && (
-                      <span className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/90 text-[#B45309] text-[11px] font-medium shadow-sm">
-                        <Tag className="size-3" />
-                        {product.category}
+                    {/* 商品图区 */}
+                    <div
+                      className="relative aspect-[4/3] flex items-center justify-center overflow-hidden"
+                      style={{
+                        background: 'linear-gradient(135deg, #FEF3E2 0%, #FCE4C8 100%)',
+                      }}
+                    >
+                      {product.imageUrl ? (
+                        <a
+                          href={product.imageUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block w-full h-full"
+                          title="点击查看大图"
+                        >
+                          <img
+                            src={product.imageUrl}
+                            alt={product.productName}
+                            className="w-full h-full object-cover"
+                          />
+                        </a>
+                      ) : (
+                        <div className="flex flex-col items-center gap-1.5 text-[#D97706]/60">
+                          <Package className="size-9" />
+                          <span className="text-[11px]">暂无图片</span>
+                        </div>
+                      )}
+                      {product.category && (
+                        <span className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/90 text-[#B45309] text-[11px] font-medium shadow-sm">
+                          <Tag className="size-3" />
+                          {product.category}
+                        </span>
+                      )}
+                      <span
+                        className={`absolute bottom-2 right-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium shadow-sm ${st.cls}`}
+                      >
+                        {product.status === 'pending' ? (
+                          <Clock className="size-3" />
+                        ) : product.status === 'approved' ? (
+                          <Check className="size-3" />
+                        ) : (
+                          <XCircle className="size-3" />
+                        )}
+                        {st.label}
                       </span>
-                    )}
-                    {/* 操作按钮（桌面 hover 显示） */}
-                    <div className="absolute top-2 right-2 hidden md:flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    </div>
+
+                    {/* 商品信息 */}
+                    <div className="p-3 flex flex-col gap-1.5 flex-1">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-[17px] font-bold text-[#D97706]">
+                          {product.price ? `¥${product.price}` : '价格面议'}
+                        </span>
+                        {product.unit && (
+                          <span className="text-[11px] text-[#98A2B3]">/{product.unit}</span>
+                        )}
+                      </div>
+                      <div className="text-[13.5px] font-medium text-[#1D2733] leading-snug line-clamp-2 min-h-[36px]">
+                        {product.productName}
+                      </div>
+                      <div className="mt-auto pt-1 space-y-1">
+                        {product.spec && (
+                          <div className="flex items-center gap-1 text-[11.5px] text-[#5B6773] truncate">
+                            <Ruler className="size-3 shrink-0 text-[#98A2B3]" />
+                            <span className="truncate">{product.spec}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1 text-[12px] text-[#B45309] truncate">
+                          <Store className="size-3.5 shrink-0" />
+                          <span className="truncate font-medium">{product.supplierName}</span>
+                        </div>
+                        {(product.contactName || product.contactPhone) && (
+                          <div className="flex items-center gap-1 text-[11.5px] text-[#5B6773] truncate">
+                            <Phone className="size-3 shrink-0 text-[#98A2B3]" />
+                            <span className="truncate">
+                              {product.contactName}
+                              {product.contactPhone ? ` · ${product.contactPhone}` : ''}
+                            </span>
+                          </div>
+                        )}
+                        {(product.productUrl || (product.files && product.files.length > 0)) && (
+                          <div className="flex items-center gap-3 pt-0.5">
+                            {product.productUrl && (
+                              <a
+                                href={
+                                  /^https?:\/\//i.test(product.productUrl)
+                                    ? product.productUrl
+                                    : `https://${product.productUrl}`
+                                }
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[#1D4ED8] hover:underline"
+                              >
+                                <ExternalLink className="size-3" />
+                                商品链接
+                              </a>
+                            )}
+                            {product.files && product.files.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setFilesOfProduct({
+                                    name: product.productName,
+                                    files: product.files ?? [],
+                                  })
+                                }
+                                className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[#B45309] hover:underline"
+                              >
+                                <Paperclip className="size-3" />
+                                附件 {product.files.length}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 操作区 */}
+                    <div className="px-3 pb-3 grid grid-cols-2 gap-2">
+                      {showApprove && (
+                        <button
+                          type="button"
+                          onClick={() => void handleApprove(product.id)}
+                          disabled={approvingId === product.id}
+                          className={`inline-flex items-center justify-center gap-1 py-2 rounded-lg text-[12.5px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 disabled:opacity-60 transition-colors ${showReject ? '' : 'col-span-2'}`}
+                        >
+                          <Check className="size-3.5" />
+                          {approvingId === product.id ? '处理中...' : '通过'}
+                        </button>
+                      )}
+                      {showReject && (
+                        <button
+                          type="button"
+                          onClick={() => handleRejectClick(product)}
+                          className={`inline-flex items-center justify-center gap-1 py-2 rounded-lg text-[12.5px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 transition-colors ${showApprove ? '' : 'col-span-2'}`}
+                        >
+                          <XCircle className="size-3.5" />
+                          驳回
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleEdit(product)}
-                        title="编辑"
-                        className="inline-flex items-center justify-center size-8 rounded-lg bg-white text-[#B45309] shadow-sm hover:bg-[#FFF7E6] transition-colors"
+                        className="inline-flex items-center justify-center gap-1 py-2 rounded-lg text-[12.5px] font-semibold text-[#B45309] bg-[#FFF7E6] hover:bg-[#FDE8C8] active:bg-[#F8DCA8] transition-colors"
                       >
-                        <Pencil className="size-4" />
+                        <Pencil className="size-3.5" />
+                        编辑
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDeleteClick(product.id)}
-                        title="删除"
-                        className="inline-flex items-center justify-center size-8 rounded-lg bg-white text-rose-600 shadow-sm hover:bg-rose-50 transition-colors"
+                        className="inline-flex items-center justify-center gap-1 py-2 rounded-lg text-[12.5px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 transition-colors"
                       >
-                        <Trash2 className="size-4" />
+                        <Trash2 className="size-3.5" />
+                        删除
                       </button>
                     </div>
-                  </div>
 
-                  {/* 商品信息 */}
-                  <div className="p-3 flex flex-col gap-1.5 flex-1">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-[17px] font-bold text-[#D97706]">
-                        {product.price ? `¥${product.price}` : '价格面议'}
-                      </span>
-                      {product.unit && (
-                        <span className="text-[11px] text-[#98A2B3]">/{product.unit}</span>
-                      )}
-                    </div>
-                    <div className="text-[13.5px] font-medium text-[#1D2733] leading-snug line-clamp-2 min-h-[36px]">
-                      {product.productName}
-                    </div>
-                    <div className="mt-auto pt-1 space-y-1">
-                      {product.spec && (
-                        <div className="flex items-center gap-1 text-[11.5px] text-[#5B6773] truncate">
-                          <Ruler className="size-3 shrink-0 text-[#98A2B3]" />
-                          <span className="truncate">{product.spec}</span>
+                    {/* 驳回理由 */}
+                    {product.status === 'rejected' && product.rejectReason && (
+                      <div className="px-3 pb-3 -mt-1">
+                        <div className="px-2.5 py-2 rounded-lg bg-rose-50 border border-rose-100 text-[11.5px] text-rose-700 leading-relaxed">
+                          <span className="font-semibold">驳回原因：</span>
+                          {product.rejectReason}
                         </div>
-                      )}
-                      <div className="flex items-center gap-1 text-[12px] text-[#B45309] truncate">
-                        <Store className="size-3.5 shrink-0" />
-                        <span className="truncate font-medium">{product.supplierName}</span>
                       </div>
-                    </div>
+                    )}
                   </div>
-
-                  {/* 手机端操作按钮 */}
-                  <div className="md:hidden flex items-center gap-2 px-3 pb-3">
-                    <button
-                      type="button"
-                      onClick={() => handleEdit(product)}
-                      className="flex-1 inline-flex items-center justify-center gap-1 py-1.5 rounded-lg text-[12px] font-medium text-[#B45309] bg-[#FFF7E6] active:bg-[#FDE8C8] transition-colors"
-                    >
-                      <Pencil className="size-3.5" />
-                      编辑
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteClick(product.id)}
-                      className="flex-1 inline-flex items-center justify-center gap-1 py-1.5 rounded-lg text-[12px] font-medium text-rose-600 bg-rose-50 active:bg-rose-100 transition-colors"
-                    >
-                      <Trash2 className="size-3.5" />
-                      删除
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* 分页 */}
@@ -505,6 +672,71 @@ const SuppliersPage = () => {
             >
               {deleting ? '删除中...' : '删除'}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 驳回弹窗 */}
+      <AlertDialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>驳回商品</AlertDialogTitle>
+            <AlertDialogDescription>
+              驳回后供应商下次提交时将看到此理由，请写清楚修改要求。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <textarea
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            rows={3}
+            placeholder="如：请补充商品图片；价格与目录不一致；缺少规格型号"
+            className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E7EC] bg-white text-[14px] text-[#1D2733] placeholder:text-[#98A2B3] outline-none focus:border-[#D97706] focus:ring-2 focus:ring-[#D97706]/20 transition-all resize-none"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={rejecting}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void handleRejectConfirm()}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+              disabled={rejecting}
+            >
+              {rejecting ? '驳回中...' : '确认驳回'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 附件列表弹窗 */}
+      <AlertDialog open={filesDialogOpen} onOpenChange={setFilesDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {filesOfProduct ? `「${filesOfProduct.name}」附件` : '附件'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              供应商提交的商品资料文件，点击下载查看。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            {filesOfProduct?.files.map((f, idx) => (
+              <a
+                key={idx}
+                href={f.data}
+                download={f.name}
+                className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg bg-[#FFFBF5] border border-[#FDE8C8] hover:bg-[#FDE8C8] transition-colors"
+              >
+                <FileText className="size-4.5 text-[#D97706] shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-medium text-[#1D2733] truncate">{f.name}</div>
+                  <div className="text-[11px] text-[#98A2B3]">
+                    {(f.size / 1024 / 1024).toFixed(2)} MB
+                  </div>
+                </div>
+                <span className="text-[12px] text-[#B45309] font-medium">下载</span>
+              </a>
+            ))}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>关闭</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

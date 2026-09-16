@@ -205,6 +205,17 @@ export const supplierProducts = pgTable("supplier_products", {
   spec: varchar("spec", { length: 200 }),
   imageUrl: text("image_url"),
   remark: text("remark"),
+  // 供应商联系信息
+  contactName: varchar("contact_name", { length: 100 }),
+  contactPhone: varchar("contact_phone", { length: 50 }),
+  wechat: varchar("wechat", { length: 100 }),
+  address: varchar("address", { length: 255 }),
+  mainCategory: varchar("main_category", { length: 100 }),
+  productUrl: text("product_url"),
+  files: text("files"),
+  status: varchar("status", { length: 20 }).notNull().default('pending'),
+  rejectReason: text("reject_reason"),
+  submitKey: varchar("submit_key", { length: 100 }),
   employeeId: uuid("employee_id"),
   // System field: Creation time (auto-filled, do not modify)
   createdAt: customTimestamptz("_created_at", { precision: 3 }).notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -221,6 +232,26 @@ export const supplierProducts = pgTable("supplier_products", {
   index("idx_supplier_products_supplier").on(table.supplierName),
   index("idx_supplier_products_category").on(table.category),
   index("idx_supplier_products_employee").on(table.employeeId),
+  index("idx_supplier_products_status").on(table.status),
+]);
+
+export const supplierKeys = pgTable("supplier_keys", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  label: varchar("label", { length: 200 }).notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  // System field: Creation time (auto-filled, do not modify)
+  createdAt: customTimestamptz("_created_at", { precision: 3 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  // System field: Creator (auto-filled, do not modify)
+  createdBy: uuid("_created_by").default(sql`CASE
+    WHEN (current_setting('app.user_id'::text, true) = ''::text) THEN NULL`),
+  // System field: Update time (auto-filled, do not modify)
+  updatedAt: customTimestamptz("_updated_at", { precision: 3 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  // System field: Updater (auto-filled, do not modify)
+  updatedBy: uuid("_updated_by").default(sql`CASE
+    WHEN (current_setting('app.user_id'::text, true) = ''::text) THEN NULL`),
+}, (table) => [
+  uniqueIndex("supplier_keys_key_key").on(table.key),
 ]);
 
 // table aliases
@@ -228,3 +259,4 @@ export const customersTable = customers;
 export const employeesTable = employees;
 export const followUpsTable = followUps;
 export const supplierProductsTable = supplierProducts;
+export const supplierKeysTable = supplierKeys;

@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Store, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Store, LogOut, KeyRound } from 'lucide-react';
 
 import { useAuth } from '@client/src/contexts/AuthContext';
 
@@ -14,6 +14,7 @@ const navItems: NavItemConfig[] = [
   { path: '/', label: '概览', icon: LayoutDashboard, end: true },
   { path: '/customers', label: '客户列表', icon: Users },
   { path: '/suppliers', label: '供应商列表', icon: Store },
+  { path: '/supplier-keys', label: '供应商密钥', icon: KeyRound },
 ];
 
 const getPageTitle = (pathname: string): string => {
@@ -21,6 +22,7 @@ const getPageTitle = (pathname: string): string => {
   if (pathname === '/customers') return '客户列表';
   if (pathname.startsWith('/customers/')) return '客户详情';
   if (pathname === '/suppliers') return '供应商列表';
+  if (pathname === '/supplier-keys') return '供应商密钥';
   return '';
 };
 

@@ -38,6 +38,12 @@ const supplierSchema = z.object({
   unit: z.string().optional(),
   spec: z.string().optional(),
   remark: z.string().optional(),
+  contactName: z.string().optional(),
+  contactPhone: z.string().optional(),
+  wechat: z.string().optional(),
+  address: z.string().optional(),
+  mainCategory: z.string().optional(),
+  productUrl: z.string().optional(),
 });
 
 type SupplierFormValues = z.infer<typeof supplierSchema>;
@@ -67,6 +73,12 @@ export function SupplierDialog({
       unit: '',
       spec: '',
       remark: '',
+      contactName: '',
+      contactPhone: '',
+      wechat: '',
+      address: '',
+      mainCategory: '',
+      productUrl: '',
     },
   });
 
@@ -81,6 +93,12 @@ export function SupplierDialog({
           unit: product.unit ?? '',
           spec: product.spec ?? '',
           remark: product.remark ?? '',
+          contactName: product.contactName ?? '',
+          contactPhone: product.contactPhone ?? '',
+          wechat: product.wechat ?? '',
+          address: product.address ?? '',
+          mainCategory: product.mainCategory ?? '',
+          productUrl: product.productUrl ?? '',
         });
       } else {
         form.reset({
@@ -91,6 +109,12 @@ export function SupplierDialog({
           unit: '',
           spec: '',
           remark: '',
+          contactName: '',
+          contactPhone: '',
+          wechat: '',
+          address: '',
+          mainCategory: '',
+          productUrl: '',
         });
       }
     }
@@ -107,6 +131,12 @@ export function SupplierDialog({
           unit: values.unit || undefined,
           spec: values.spec || undefined,
           remark: values.remark || undefined,
+          contactName: values.contactName || undefined,
+          contactPhone: values.contactPhone || undefined,
+          wechat: values.wechat || undefined,
+          address: values.address || undefined,
+          mainCategory: values.mainCategory || undefined,
+          productUrl: values.productUrl || undefined,
         };
         await suppliersApi.update(product.id, dto);
       } else {
@@ -118,6 +148,12 @@ export function SupplierDialog({
           unit: values.unit || undefined,
           spec: values.spec || undefined,
           remark: values.remark || undefined,
+          contactName: values.contactName || undefined,
+          contactPhone: values.contactPhone || undefined,
+          wechat: values.wechat || undefined,
+          address: values.address || undefined,
+          mainCategory: values.mainCategory || undefined,
+          productUrl: values.productUrl || undefined,
         };
         await suppliersApi.create(dto);
       }
@@ -211,6 +247,92 @@ export function SupplierDialog({
                     <FormLabel>单位</FormLabel>
                     <FormControl>
                       <Input placeholder="件/台/套" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-1 border-t border-[#F0F2F5]">
+              <FormField
+                control={form.control}
+                name="contactName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>联系人</FormLabel>
+                    <FormControl>
+                      <Input placeholder="如：王经理" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="contactPhone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>联系电话</FormLabel>
+                    <FormControl>
+                      <Input placeholder="手机或座机" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="wechat"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>微信</FormLabel>
+                    <FormControl>
+                      <Input placeholder="微信号" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="mainCategory"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>主营分类</FormLabel>
+                    <FormControl>
+                      <Input placeholder="如：锯片/电动工具" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>所在地区</FormLabel>
+                    <FormControl>
+                      <Input placeholder="如：江苏南通" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="productUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>商品链接</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://..." {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

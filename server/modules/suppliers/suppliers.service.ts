@@ -12,10 +12,12 @@ import { eq, and, count, desc, asc, ilike, or } from 'drizzle-orm';
 import type {
   SupplierProduct,
   SupplierListResponse,
+  SupplierStatus,
   CreateSupplierProductDto,
   UpdateSupplierProductDto,
   ImportSupplierItem,
   ImportResult,
+  SupplierFile,
 } from '@shared/api.interface';
 
 interface ListParams {
@@ -23,6 +25,7 @@ interface ListParams {
   pageSize: number;
   keyword?: string;
   category?: string;
+  status?: SupplierStatus;
   sortBy?: 'updatedAt' | 'createdAt' | 'productName' | 'price';
   sortOrder?: 'asc' | 'desc';
 }
@@ -33,13 +36,16 @@ export class SuppliersService {
 
   constructor(@Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase) {}
 
-  async list(params: ListParams, employeeId: string): Promise<SupplierListResponse> {
-    const { page, pageSize: rawPageSize, keyword, category, sortBy, sortOrder } = params;
+  /**
+   * 供应商商品对所有登录用户可见可搜（团队共享）
+   */
+  async list(params: ListParams): Promise<SupplierListResponse> {
+    const { page, pageSize: rawPageSize, keyword, category, status, sortBy, sortOrder } = params;
     const safePage = Math.max(1, page);
     const safePageSize = Math.min(50, Math.max(1, rawPageSize));
     const offset = (safePage - 1) * safePageSize;
 
-    const conditions = [eq(supplierProducts.employeeId, employeeId)];
+    const conditions = [];
     if (keyword && keyword.trim()) {
       const pattern = `%${keyword.trim()}%`;
       conditions.push(or(
@@ -47,12 +53,18 @@ export class SuppliersService {
         ilike(supplierProducts.supplierName, pattern),
         ilike(supplierProducts.category, pattern),
         ilike(supplierProducts.spec, pattern),
+        ilike(supplierProducts.contactName, pattern),
+        ilike(supplierProducts.contactPhone, pattern),
+        ilike(supplierProducts.mainCategory, pattern),
       ));
     }
     if (category && category.trim()) {
       conditions.push(eq(supplierProducts.category, category.trim()));
     }
-    const whereClause = and(...conditions);
+    if (status) {
+      conditions.push(eq(supplierProducts.status, status));
+    }
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const orderCol = sortBy === 'createdAt'
       ? supplierProducts.createdAt
@@ -72,10 +84,7 @@ export class SuppliersService {
         .orderBy(orderFn(orderCol))
         .limit(safePageSize)
         .offset(offset),
-      this.db
-        .select({ supplierName: supplierProducts.supplierName })
-        .from(supplierProducts)
-        .where(eq(supplierProducts.employeeId, employeeId)),
+      this.db.select({ supplierName: supplierProducts.supplierName }).from(supplierProducts),
     ]);
 
     const total = Number(countResult[0]?.count ?? 0);
@@ -93,11 +102,10 @@ export class SuppliersService {
     };
   }
 
-  async categories(employeeId: string): Promise<string[]> {
+  async categories(): Promise<string[]> {
     const rows = await this.db
       .select({ category: supplierProducts.category })
-      .from(supplierProducts)
-      .where(eq(supplierProducts.employeeId, employeeId));
+      .from(supplierProducts);
     const set = new Set<string>();
     for (const r of rows) {
       if (r.category && r.category.trim()) set.add(r.category.trim());
@@ -123,6 +131,13 @@ export class SuppliersService {
         spec: dto.spec?.trim() || null,
         imageUrl: dto.imageUrl || null,
         remark: dto.remark?.trim() || null,
+        contactName: dto.contactName?.trim() || null,
+        contactPhone: dto.contactPhone?.trim() || null,
+        wechat: dto.wechat?.trim() || null,
+        address: dto.address?.trim() || null,
+        mainCategory: dto.mainCategory?.trim() || null,
+        productUrl: dto.productUrl?.trim() || null,
+        status: 'approved',
         employeeId,
       })
       .returning();
@@ -130,11 +145,11 @@ export class SuppliersService {
     return this.toSupplierProduct(inserted[0]);
   }
 
-  async update(id: string, dto: UpdateSupplierProductDto, employeeId: string): Promise<SupplierProduct> {
+  async update(id: string, dto: UpdateSupplierProductDto): Promise<SupplierProduct> {
     const existing = await this.db
       .select()
       .from(supplierProducts)
-      .where(and(eq(supplierProducts.id, id), eq(supplierProducts.employeeId, employeeId)))
+      .where(eq(supplierProducts.id, id))
       .limit(1);
     if (existing.length === 0) {
       throw new NotFoundException('商品不存在');
@@ -149,6 +164,12 @@ export class SuppliersService {
     if (dto.spec !== undefined) patch.spec = dto.spec.trim() || null;
     if (dto.imageUrl !== undefined) patch.imageUrl = dto.imageUrl || null;
     if (dto.remark !== undefined) patch.remark = dto.remark.trim() || null;
+    if (dto.contactName !== undefined) patch.contactName = dto.contactName.trim() || null;
+    if (dto.contactPhone !== undefined) patch.contactPhone = dto.contactPhone.trim() || null;
+    if (dto.wechat !== undefined) patch.wechat = dto.wechat.trim() || null;
+    if (dto.address !== undefined) patch.address = dto.address.trim() || null;
+    if (dto.mainCategory !== undefined) patch.mainCategory = dto.mainCategory.trim() || null;
+    if (dto.productUrl !== undefined) patch.productUrl = dto.productUrl.trim() || null;
 
     if (Object.keys(patch).length === 0) {
       throw new BadRequestException('未提供可更新字段');
@@ -159,23 +180,64 @@ export class SuppliersService {
     const updated = await this.db
       .update(supplierProducts)
       .set(patch)
-      .where(and(eq(supplierProducts.id, id), eq(supplierProducts.employeeId, employeeId)))
+      .where(eq(supplierProducts.id, id))
       .returning();
     this.logger.log(`更新供应商商品成功: ${id}`);
     return this.toSupplierProduct(updated[0]);
   }
 
-  async remove(id: string, employeeId: string): Promise<void> {
+  async remove(id: string): Promise<void> {
     const existing = await this.db
       .select()
       .from(supplierProducts)
-      .where(and(eq(supplierProducts.id, id), eq(supplierProducts.employeeId, employeeId)))
+      .where(eq(supplierProducts.id, id))
       .limit(1);
     if (existing.length === 0) {
       throw new NotFoundException('商品不存在');
     }
     await this.db.delete(supplierProducts).where(eq(supplierProducts.id, id));
     this.logger.log(`删除供应商商品成功: ${id}`);
+  }
+
+  /** 审核通过 */
+  async approve(id: string): Promise<SupplierProduct> {
+    const existing = await this.db
+      .select()
+      .from(supplierProducts)
+      .where(eq(supplierProducts.id, id))
+      .limit(1);
+    if (existing.length === 0) {
+      throw new NotFoundException('商品不存在');
+    }
+    const updated = await this.db
+      .update(supplierProducts)
+      .set({ status: 'approved', rejectReason: null, updatedAt: new Date() })
+      .where(eq(supplierProducts.id, id))
+      .returning();
+    this.logger.log(`审核通过供应商商品: ${id}`);
+    return this.toSupplierProduct(updated[0]);
+  }
+
+  /** 审核驳回 */
+  async reject(id: string, reason: string): Promise<SupplierProduct> {
+    const existing = await this.db
+      .select()
+      .from(supplierProducts)
+      .where(eq(supplierProducts.id, id))
+      .limit(1);
+    if (existing.length === 0) {
+      throw new NotFoundException('商品不存在');
+    }
+    if (!reason || !reason.trim()) {
+      throw new BadRequestException('请填写驳回理由');
+    }
+    const updated = await this.db
+      .update(supplierProducts)
+      .set({ status: 'rejected', rejectReason: reason.trim(), updatedAt: new Date() })
+      .where(eq(supplierProducts.id, id))
+      .returning();
+    this.logger.log(`审核驳回供应商商品: ${id}`);
+    return this.toSupplierProduct(updated[0]);
   }
 
   async importItems(items: ImportSupplierItem[], employeeId: string): Promise<ImportResult> {
@@ -201,6 +263,7 @@ export class SuppliersService {
         unit: item.unit?.trim() || null,
         spec: item.spec?.trim() || null,
         remark: item.remark?.trim() || null,
+        status: 'approved',
         employeeId,
       });
     });
@@ -219,6 +282,15 @@ export class SuppliersService {
   }
 
   private toSupplierProduct(row: typeof supplierProducts.$inferSelect): SupplierProduct {
+    let files: SupplierFile[] | null = null;
+    if (row.files) {
+      try {
+        const parsed = JSON.parse(row.files);
+        if (Array.isArray(parsed)) files = parsed as SupplierFile[];
+      } catch {
+        files = null;
+      }
+    }
     return {
       id: row.id,
       productName: row.productName,
@@ -229,6 +301,16 @@ export class SuppliersService {
       spec: row.spec,
       imageUrl: row.imageUrl,
       remark: row.remark,
+      contactName: row.contactName,
+      contactPhone: row.contactPhone,
+      wechat: row.wechat,
+      address: row.address,
+      mainCategory: row.mainCategory,
+      productUrl: row.productUrl,
+      files,
+      status: (row.status ?? 'pending') as SupplierStatus,
+      rejectReason: row.rejectReason,
+      submitKey: row.submitKey,
       employeeId: row.employeeId ?? '',
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
