@@ -71,7 +71,7 @@ const MobileNavItem = ({ item }: { item: NavItemConfig }) => {
       end={item.end}
       className={({ isActive }) =>
         [
-          'mobile-nav-item flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] transition-colors',
+          'mobile-nav-item flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] whitespace-nowrap transition-colors',
           isActive ? 'mobile-nav-item--active' : '',
         ].join(' ')
       }
@@ -177,42 +177,44 @@ const Layout = () => {
       <main
         className="min-h-screen flex flex-col md:ml-[220px]"
       >
-        {/* 手机顶栏（<768px）：导航 + 用户 */}
+        {/* 手机顶栏（<768px）：第一行 logo + 用户，第二行 全宽导航（横向滚动不挤压） */}
         <header
-          className="md:hidden sticky top-0 z-20 flex items-center justify-between gap-2 px-4 h-[52px] bg-white"
+          className="md:hidden sticky top-0 z-20 bg-white"
           style={{ borderBottom: `1px solid ${TOPBAR_BORDER}` }}
         >
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: ACTIVE_BG }}
-            >
-              <LayoutDashboard className="w-4 h-4 text-white" />
+          <div className="flex items-center justify-between gap-2 px-4 h-[52px]">
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center"
+                style={{ backgroundColor: ACTIVE_BG }}
+              >
+                <LayoutDashboard className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-[13px] font-semibold text-slate-900">
+                客户管理
+              </span>
             </div>
-            <span className="text-[13px] font-semibold text-slate-900">
-              客户管理
-            </span>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-medium"
+                style={{ backgroundColor: AVATAR_BG, color: AVATAR_TEXT }}
+              >
+                {initial}
+              </div>
+              <button
+                onClick={logout}
+                title="退出登录"
+                className="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-[#F2F4F7] transition-colors"
+              >
+                <LogOut className="w-4 h-4" style={{ color: LOGOUT_COLOR }} />
+              </button>
+            </div>
           </div>
-          <nav className="flex items-center gap-1 overflow-x-auto">
+          <nav className="flex items-center gap-1 px-3 pb-2 overflow-x-auto">
             {visibleNavItems.map((item) => (
               <MobileNavItem key={item.path} item={item} />
             ))}
           </nav>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <div
-              className="w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-medium"
-              style={{ backgroundColor: AVATAR_BG, color: AVATAR_TEXT }}
-            >
-              {initial}
-            </div>
-            <button
-              onClick={logout}
-              title="退出登录"
-              className="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-[#F2F4F7] transition-colors"
-            >
-              <LogOut className="w-4 h-4" style={{ color: LOGOUT_COLOR }} />
-            </button>
-          </div>
         </header>
 
         {/* 桌面顶栏（≥768px） */}

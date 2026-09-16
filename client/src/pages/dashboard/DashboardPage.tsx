@@ -59,36 +59,6 @@ function StatCard({ label, value, color, onClick }: StatCardProps) {
   );
 }
 
-function StageTag({ stage }: { stage: CustomerStage }) {
-  const style = STAGE_TAG_STYLES[stage];
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '3px 10px',
-        borderRadius: '999px',
-        fontSize: '12px',
-        fontWeight: 500,
-        background: style.bg,
-        color: style.color,
-      }}
-    >
-      <span
-        aria-hidden
-        style={{
-          width: '6px',
-          height: '6px',
-          borderRadius: '50%',
-          background: 'currentColor',
-        }}
-      />
-      {STAGE_NAMES[stage]}
-    </span>
-  );
-}
-
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -199,32 +169,52 @@ export default function DashboardPage() {
             点击客户列表可查看明细
           </span>
         </div>
-        <div style={{ padding: '18px' }}>
-          {STAGE_ORDER.map((stage) => {
-            const item = stageDistribution.find((s) => s.stage === stage);
-            const count = item?.count ?? 0;
-            const width = (count / maxCount) * 100;
-            return (
-              <div
-                key={stage}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  marginBottom: '12px',
-                }}
-              >
+        <div style={{ padding: '16px 18px 18px' }}>
+          {/* 第一行：5 个阶段标签横排（不换行） */}
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+            {STAGE_ORDER.map((stage) => {
+              const tag = STAGE_TAG_STYLES[stage];
+              return (
                 <div
+                  key={stage}
                   style={{
-                    width: '64px',
-                    flexShrink: 0,
-                    fontSize: '13px',
-                    color: '#5B6773',
+                    flex: 1,
+                    minWidth: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    color: tag.color,
+                    whiteSpace: 'nowrap',
                   }}
                 >
-                  <StageTag stage={stage} />
+                  <span
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '999px',
+                      flexShrink: 0,
+                      background: tag.color,
+                    }}
+                  />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {STAGE_NAMES[stage]}
+                  </span>
                 </div>
+              );
+            })}
+          </div>
+          {/* 第二行：5 条进度条 */}
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+            {STAGE_ORDER.map((stage) => {
+              const item = stageDistribution.find((s) => s.stage === stage);
+              const count = item?.count ?? 0;
+              const width = (count / maxCount) * 100;
+              return (
                 <div
+                  key={stage}
                   style={{
                     flex: 1,
                     height: '10px',
@@ -242,19 +232,28 @@ export default function DashboardPage() {
                     }}
                   />
                 </div>
+              );
+            })}
+          </div>
+          {/* 第三行：5 个数字 */}
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {STAGE_ORDER.map((stage) => {
+              const item = stageDistribution.find((s) => s.stage === stage);
+              return (
                 <div
+                  key={stage}
                   style={{
-                    width: '44px',
-                    textAlign: 'right',
+                    flex: 1,
+                    textAlign: 'center',
                     fontSize: '13px',
                     color: '#5B6773',
                   }}
                 >
-                  {count}
+                  {item?.count ?? 0}
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
 
