@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Store, LogOut, KeyRound } from 'lucide-react';
+import { LayoutDashboard, Users, Store, LogOut, KeyRound, ShieldCheck } from 'lucide-react';
 
 import { useAuth } from '@client/src/contexts/AuthContext';
 
@@ -17,12 +17,20 @@ const navItems: NavItemConfig[] = [
   { path: '/supplier-keys', label: '供应商密钥', icon: KeyRound },
 ];
 
+/** 老板专属导航项（仅管理员可见） */
+const adminNavItem: NavItemConfig = {
+  path: '/admin',
+  label: '老板后台',
+  icon: ShieldCheck,
+};
+
 const getPageTitle = (pathname: string): string => {
   if (pathname === '/' || pathname.startsWith('/dashboard')) return '概览';
   if (pathname === '/customers') return '客户列表';
   if (pathname.startsWith('/customers/')) return '客户详情';
   if (pathname === '/suppliers') return '供应商列表';
   if (pathname === '/supplier-keys') return '供应商密钥';
+  if (pathname === '/admin') return '老板后台';
   return '';
 };
 
@@ -78,6 +86,10 @@ const Layout = () => {
   const { employee, logout } = useAuth();
   const location = useLocation();
   const pageTitle = getPageTitle(location.pathname);
+
+  // 老板后台入口仅管理员可见
+  const visibleNavItems: NavItemConfig[] =
+    employee?.role === 'admin' ? [...navItems, adminNavItem] : navItems;
 
   const initial = employee?.name?.charAt(0) ?? '用';
 
@@ -137,7 +149,7 @@ const Layout = () => {
 
         {/* 导航菜单 */}
         <nav className="p-[14px] flex flex-col gap-1 flex-1">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavItem key={item.path} item={item} />
           ))}
         </nav>
@@ -182,7 +194,7 @@ const Layout = () => {
             </span>
           </div>
           <nav className="flex items-center gap-1 overflow-x-auto">
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <MobileNavItem key={item.path} item={item} />
             ))}
           </nav>

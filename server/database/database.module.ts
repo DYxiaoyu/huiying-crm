@@ -18,11 +18,17 @@ async function ensureSchema(client: postgres.Sql): Promise<void> {
       name varchar(100) NOT NULL,
       username varchar(50) NOT NULL UNIQUE,
       password_hash varchar(255) NOT NULL,
+      role varchar(20) NOT NULL DEFAULT 'employee',
       _created_at timestamptz(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       _created_by uuid,
       _updated_at timestamptz(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       _updated_by uuid
     );
+
+    -- 员工角色字段（老表升级，幂等）
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS role varchar(20) NOT NULL DEFAULT 'employee';
+    -- admin 账号提升为管理员（老板专享后台）
+    UPDATE employees SET role = 'admin' WHERE username = 'admin' AND role <> 'admin';
 
     CREATE TABLE IF NOT EXISTS customers (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

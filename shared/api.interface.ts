@@ -10,10 +10,13 @@ export const STAGE_NAMES: Record<CustomerStage, string> = {
 
 export const STAGE_ORDER: CustomerStage[] = ['new', 'contacted', 'following', 'closed', 'lost'];
 
+export type EmployeeRole = 'admin' | 'employee';
+
 export interface Employee {
   id: string;
   name: string;
   username: string;
+  role: EmployeeRole;
 }
 
 export interface Customer {
@@ -96,6 +99,7 @@ export interface RegisterDto {
   name: string;
   username: string;
   password: string;
+  role?: EmployeeRole;
 }
 
 export interface LoginDto {
@@ -282,4 +286,45 @@ export interface SupplierKey {
 
 export interface CreateSupplierKeyDto {
   label: string;
+}
+
+// ===== 老板后台（员工管理 + 全局总览） =====
+
+export interface AdminEmployeeItem {
+  id: string;
+  name: string;
+  username: string;
+  role: EmployeeRole;
+  createdAt: string;
+  customerCount: number;
+  supplierCount: number;
+}
+
+export interface CreateEmployeeDto {
+  name: string;
+  username: string;
+  password: string;
+  role?: EmployeeRole;
+}
+
+export interface UpdateEmployeeDto {
+  name?: string;
+  role?: EmployeeRole;
+  password?: string;
+}
+
+export interface AdminOverview {
+  customerTotal: number;
+  customerByStage: StageDistribution[];
+  supplierTotal: number;
+  supplierPending: number;
+  employeeTotal: number;
+  adminTotal: number;
+  supplierKeyTotal: number;
+  followUpTotal: number;
+}
+
+export interface AdminOverviewResponse {
+  overview: AdminOverview;
+  employees: AdminEmployeeItem[];
 }

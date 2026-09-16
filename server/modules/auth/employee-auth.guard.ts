@@ -6,12 +6,13 @@ import {
 } from '@nestjs/common';
 import { verify } from 'jsonwebtoken';
 import { JWT_SECRET } from './auth.service';
-import type { Employee } from '@shared/api.interface';
+import type { Employee, EmployeeRole } from '@shared/api.interface';
 
 interface JwtPayload {
   employeeId: string;
   username: string;
   name: string;
+  role?: string;
 }
 
 @Injectable()
@@ -32,6 +33,7 @@ export class EmployeeAuthGuard implements CanActivate {
         id: payload.employeeId,
         username: payload.username,
         name: payload.name,
+        role: (payload.role === 'admin' ? 'admin' : 'employee') as EmployeeRole,
       };
       request.employee = employee;
       return true;

@@ -122,6 +122,7 @@ export const employees = pgTable("employees", {
   name: varchar("name", { length: 100 }).notNull(),
   username: varchar("username", { length: 50 }).notNull().unique(),
   passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  role: varchar("role", { length: 20 }).notNull().default('employee'),
   // System field: Creation time (auto-filled, do not modify)
   createdAt: customTimestamptz("_created_at", { precision: 3 }).notNull().default(sql`CURRENT_TIMESTAMP`),
   // System field: Creator (auto-filled, do not modify)

@@ -9,6 +9,7 @@ import CustomerDetailPage from './pages/customer-detail/CustomerDetailPage';
 import SuppliersPage from './pages/suppliers/SuppliersPage';
 import SupplierKeysPage from './pages/supplier-keys/SupplierKeysPage';
 import SupplierApplyPage from './pages/supplier-apply/SupplierApplyPage';
+import AdminPage from './pages/admin/AdminPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import LoginPage from './pages/login/LoginPage';
 
@@ -16,6 +17,18 @@ const ProtectedRoute = ({ children }: { children: React.ReactElement }) => {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+  return children;
+};
+
+/** 老板后台：仅管理员可访问，普通员工访问跳回概览 */
+const AdminRoute = ({ children }: { children: React.ReactElement }) => {
+  const { isAuthenticated, employee } = useAuth();
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  if (employee?.role !== 'admin') {
+    return <Navigate to="/" replace />;
   }
   return children;
 };
@@ -42,6 +55,14 @@ const RoutesComponent = () => {
           <Route path="customers/:id" element={<CustomerDetailPage />} />
           <Route path="suppliers" element={<SuppliersPage />} />
           <Route path="supplier-keys" element={<SupplierKeysPage />} />
+          <Route
+            path="admin"
+            element={
+              <AdminRoute>
+                <AdminPage />
+              </AdminRoute>
+            }
+          />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>

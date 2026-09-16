@@ -57,13 +57,14 @@ export class AuthService {
 
     const inserted = await this.db
       .insert(employees)
-      .values({ name, username, passwordHash })
-      .returning({ id: employees.id, name: employees.name, username: employees.username });
+      .values({ name, username, passwordHash, role: dto.role ?? 'employee' })
+      .returning({ id: employees.id, name: employees.name, username: employees.username, role: employees.role });
 
     const employee: Employee = {
       id: inserted[0].id,
       name: inserted[0].name,
       username: inserted[0].username,
+      role: (inserted[0].role ?? 'employee') as Employee['role'],
     };
 
     const token: string = this.generateToken(employee);
@@ -82,6 +83,7 @@ export class AuthService {
         name: employees.name,
         username: employees.username,
         passwordHash: employees.passwordHash,
+        role: employees.role,
       })
       .from(employees)
       .where(eq(employees.username, username));
@@ -101,6 +103,7 @@ export class AuthService {
       id: row.id,
       name: row.name,
       username: row.username,
+      role: (row.role ?? 'employee') as Employee['role'],
     };
 
     const token: string = this.generateToken(employee);
@@ -112,7 +115,7 @@ export class AuthService {
 
   private generateToken(employee: Employee): string {
     return sign(
-      { employeeId: employee.id, username: employee.username, name: employee.name },
+      { employeeId: employee.id, username: employee.username, name: employee.name, role: employee.role },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN },
     );

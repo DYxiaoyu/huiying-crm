@@ -9,6 +9,7 @@ import { CustomersModule } from './modules/customers/customers.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { SupplierPublicModule } from './modules/supplier-public/supplier-public.module';
 import { SupplierKeysModule } from './modules/supplier-keys/supplier-keys.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { FollowUpsModule } from './modules/follow-ups/follow-ups.module';
 
@@ -23,6 +24,7 @@ import { FollowUpsModule } from './modules/follow-ups/follow-ups.module';
     SuppliersModule,
     SupplierPublicModule,
     SupplierKeysModule,
+    AdminModule,
     DashboardModule,
     FollowUpsModule,
     // ====== @route-section: business-modules END ======
