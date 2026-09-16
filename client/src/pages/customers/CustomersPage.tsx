@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search,
@@ -11,6 +11,7 @@ import {
   ImagePlus,
   Images,
   Star,
+  FileUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@lark-apaas/client-toolkit/logger';
@@ -52,11 +53,21 @@ import {
 } from '@/components/ui/empty';
 
 import * as customersApi from '@/api/customers';
+import { csvToObjects } from '@/utils/csv';
 import { CustomerDialog } from './CustomerDialog';
 import type {
   Customer,
   CustomerStage,
+  ImportCustomerItem,
 } from '@shared/api.interface';
+
+const STAGE_NAME_TO_VALUE: Record<string, CustomerStage> = {
+  新客户: 'new',
+  已联系: 'contacted',
+  跟进中: 'following',
+  已成交: 'closed',
+  已流失: 'lost',
+};
 
 const STAGE_OPTIONS: { value: CustomerStage | ''; label: string }[] = [
   { value: '', label: '全部' },
@@ -146,6 +157,8 @@ const CustomersPage = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { sortBy, sortOrder } = useMemo(() => {
     const [by, order] = sortValue.split('-');
@@ -292,6 +305,43 @@ const CustomersPage = () => {
     document.body.removeChild(a);
   };
 
+  /** 导入 CSV：解析文件 → 批量创建客户 */
+  const handleImportCsvFile = async (file: File) => {
+    if (!file) return;
+    if (!/\.csv$/i.test(file.name)) {
+      toast.error('请选择 .csv 文件');
+      return;
+    }
+    try {
+      const text = await file.text();
+      const rows = csvToObjects(text);
+      if (rows.length === 0) {
+        toast.error('未识别到数据，请确认表头包含"客户姓名"');
+        return;
+      }
+      const items: ImportCustomerItem[] = rows.map((r) => ({
+        name: r.name ?? '',
+        phone: r.phone || undefined,
+        company: r.company || undefined,
+        source: r.source || undefined,
+        stage: (r.stage && STAGE_NAME_TO_VALUE[r.stage]) || undefined,
+        remark: r.remark || undefined,
+      }));
+      const res = await customersApi.importCustomers(items);
+      if (res.imported > 0) {
+        toast.success(`导入成功 ${res.imported} 条${res.skipped > 0 ? `，跳过 ${res.skipped} 条` : ''}`);
+        void fetchList();
+      } else {
+        toast.error(`没有可导入的数据${res.errors.length ? `（${res.errors[0]}）` : ''}`);
+      }
+    } catch (error) {
+      logger.error('导入客户失败', error as Error);
+      toast.error('导入失败，请检查文件格式');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handlePrevPage = () => {
     if (page > 1) setPage(page - 1);
   };
@@ -345,6 +395,25 @@ const CustomersPage = () => {
               <Download className="size-4" />
               <span>导出 CSV</span>
             </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              data-ai-section-type="button"
+              className="inline-flex items-center gap-2 px-[14px] py-2 rounded-lg bg-white/15 border border-white/25 text-white text-sm font-medium backdrop-blur hover:bg-white/25 transition-all"
+            >
+              <FileUp className="size-4" />
+              <span>导入 CSV</span>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleImportCsvFile(file);
+              }}
+            />
             <button
               type="button"
               onClick={handleAdd}

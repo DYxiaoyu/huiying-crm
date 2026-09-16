@@ -7,6 +7,8 @@ import type {
   CustomerListQuery,
   CustomerListResponse,
   DuplicateCheckResult,
+  ImportCustomerItem,
+  ImportResult,
   UpdateCustomerDto,
 } from '@shared/api.interface';
 
@@ -98,4 +100,19 @@ export function getCsvUrl(): string {
 
 export function getBackupUrl(): string {
   return '/api/customers/export/backup';
+}
+
+export async function importCustomers(
+  items: ImportCustomerItem[]
+): Promise<ImportResult> {
+  try {
+    const { data } = await axiosForBackend.post<ImportResult>(
+      '/api/customers/import',
+      { items }
+    );
+    return data;
+  } catch (error) {
+    logger.error('导入客户失败', error as Error);
+    throw error;
+  }
 }

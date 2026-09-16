@@ -17,6 +17,8 @@ import type {
   CreateCustomerDto,
   UpdateCustomerDto,
   DuplicateCheckResult,
+  ImportCustomerItem,
+  ImportResult,
 } from '@shared/api.interface';
 
 interface ListParams {
@@ -276,6 +278,46 @@ export class CustomersService {
       duplicateName,
       duplicatePhone,
     };
+  }
+
+  async importCustomers(items: ImportCustomerItem[], employeeId: string): Promise<ImportResult> {
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new BadRequestException('没有可导入的数据');
+    }
+    const errors: string[] = [];
+    let imported = 0;
+    const validRows: Array<typeof customers.$inferInsert> = [];
+    const stageSet = new Set(['new', 'contacted', 'following', 'closed', 'lost']);
+
+    items.forEach((item, index) => {
+      const name = item.name?.trim();
+      if (!name) {
+        errors.push(`第 ${index + 1} 行缺少客户姓名`);
+        return;
+      }
+      const stage = item.stage && stageSet.has(item.stage) ? item.stage : 'new';
+      validRows.push({
+        name,
+        phone: item.phone?.trim() || null,
+        company: item.company?.trim() || null,
+        source: item.source?.trim() || null,
+        stage,
+        remark: item.remark?.trim() || null,
+        employeeId,
+      });
+    });
+
+    if (validRows.length > 0) {
+      // 分批插入（每批 200 条）
+      for (let i = 0; i < validRows.length; i += 200) {
+        const batch = validRows.slice(i, i + 200);
+        await this.db.insert(customers).values(batch);
+      }
+      imported = validRows.length;
+    }
+
+    this.logger.log(`导入客户成功: ${imported} 条, 跳过 ${items.length - imported} 条`);
+    return { imported, skipped: items.length - imported, errors };
   }
 
   async exportCsv(employeeId: string): Promise<string> {

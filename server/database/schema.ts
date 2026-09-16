@@ -195,7 +195,36 @@ export const customers = pgTable("customers", {
   index("idx_customers_employee").on(table.employeeId),
 ]);
 
+export const supplierProducts = pgTable("supplier_products", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  productName: varchar("product_name", { length: 200 }).notNull(),
+  supplierName: varchar("supplier_name", { length: 200 }).notNull(),
+  category: varchar("category", { length: 100 }),
+  price: varchar("price", { length: 50 }),
+  unit: varchar("unit", { length: 20 }),
+  spec: varchar("spec", { length: 200 }),
+  imageUrl: text("image_url"),
+  remark: text("remark"),
+  employeeId: uuid("employee_id"),
+  // System field: Creation time (auto-filled, do not modify)
+  createdAt: customTimestamptz("_created_at", { precision: 3 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  // System field: Creator (auto-filled, do not modify)
+  createdBy: uuid("_created_by").default(sql`CASE
+    WHEN (current_setting('app.user_id'::text, true) = ''::text) THEN NULL`),
+  // System field: Update time (auto-filled, do not modify)
+  updatedAt: customTimestamptz("_updated_at", { precision: 3 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  // System field: Updater (auto-filled, do not modify)
+  updatedBy: uuid("_updated_by").default(sql`CASE
+    WHEN (current_setting('app.user_id'::text, true) = ''::text) THEN NULL`),
+}, (table) => [
+  index("idx_supplier_products_name").on(table.productName),
+  index("idx_supplier_products_supplier").on(table.supplierName),
+  index("idx_supplier_products_category").on(table.category),
+  index("idx_supplier_products_employee").on(table.employeeId),
+]);
+
 // table aliases
 export const customersTable = customers;
 export const employeesTable = employees;
 export const followUpsTable = followUps;
+export const supplierProductsTable = supplierProducts;

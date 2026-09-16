@@ -21,6 +21,8 @@ import type {
   CreateCustomerDto,
   UpdateCustomerDto,
   DuplicateCheckResult,
+  ImportCustomerItem,
+  ImportResult,
 } from '@shared/api.interface';
 
 @Controller('api/customers')
@@ -97,6 +99,14 @@ export class CustomersController {
       'attachment; filename="customers-backup.json"',
     );
     res.json(data);
+  }
+
+  @Post('import')
+  async importCustomers(
+    @CurrentEmployee() employee: { id: string },
+    @Body() body: { items: ImportCustomerItem[] },
+  ): Promise<ImportResult> {
+    return this.customersService.importCustomers(body?.items ?? [], employee.id);
   }
 
   @Get(':id')

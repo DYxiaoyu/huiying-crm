@@ -6,6 +6,7 @@ import Layout from './components/Layout';
 import NotFound from './pages/NotFound/NotFound';
 import CustomersPage from './pages/customers/CustomersPage';
 import CustomerDetailPage from './pages/customer-detail/CustomerDetailPage';
+import SuppliersPage from './pages/suppliers/SuppliersPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import LoginPage from './pages/login/LoginPage';
 
@@ -32,6 +33,7 @@ const RoutesComponent = () => {
           <Route index element={<DashboardPage />} />
           <Route path="customers" element={<CustomersPage />} />
           <Route path="customers/:id" element={<CustomerDetailPage />} />
+          <Route path="suppliers" element={<SuppliersPage />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>

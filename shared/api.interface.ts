@@ -128,3 +128,84 @@ export interface DashboardResponse {
   stageDistribution: StageDistribution[];
   recentFollowUps: FollowUp[];
 }
+
+// ===== 供应商商品 =====
+
+export interface SupplierProduct {
+  id: string;
+  productName: string;
+  supplierName: string;
+  category: string | null;
+  price: string | null;
+  unit: string | null;
+  spec: string | null;
+  imageUrl: string | null;
+  remark: string | null;
+  employeeId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SupplierListQuery {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+  category?: string;
+  sortBy?: 'updatedAt' | 'createdAt' | 'productName' | 'price';
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface SupplierListResponse {
+  items: SupplierProduct[];
+  total: number;
+  page: number;
+  pageSize: number;
+  supplierCount: number;
+}
+
+export interface CreateSupplierProductDto {
+  productName: string;
+  supplierName: string;
+  category?: string;
+  price?: string;
+  unit?: string;
+  spec?: string;
+  imageUrl?: string;
+  remark?: string;
+}
+
+export interface UpdateSupplierProductDto {
+  productName?: string;
+  supplierName?: string;
+  category?: string;
+  price?: string;
+  unit?: string;
+  spec?: string;
+  imageUrl?: string;
+  remark?: string;
+}
+
+export interface ImportResult {
+  imported: number;
+  skipped: number;
+  errors: string[];
+}
+
+export interface ImportCustomerItem {
+  name: string;
+  phone?: string;
+  company?: string;
+  source?: string;
+  stage?: CustomerStage;
+  remark?: string;
+}
+
+export interface ImportSupplierItem {
+  productName: string;
+  supplierName: string;
+  category?: string;
+  price?: string;
+  unit?: string;
+  spec?: string;
+  remark?: string;
+}

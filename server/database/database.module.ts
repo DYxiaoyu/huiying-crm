@@ -60,6 +60,27 @@ async function ensureSchema(client: postgres.Sql): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
     CREATE INDEX IF NOT EXISTS idx_customers_employee ON customers(employee_id);
 
+    CREATE TABLE IF NOT EXISTS supplier_products (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      product_name varchar(200) NOT NULL,
+      supplier_name varchar(200) NOT NULL,
+      category varchar(100),
+      price varchar(50),
+      unit varchar(20),
+      spec varchar(200),
+      image_url text,
+      remark text,
+      employee_id uuid,
+      _created_at timestamptz(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      _created_by uuid,
+      _updated_at timestamptz(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      _updated_by uuid
+    );
+    CREATE INDEX IF NOT EXISTS idx_supplier_products_name ON supplier_products(product_name);
+    CREATE INDEX IF NOT EXISTS idx_supplier_products_supplier ON supplier_products(supplier_name);
+    CREATE INDEX IF NOT EXISTS idx_supplier_products_category ON supplier_products(category);
+    CREATE INDEX IF NOT EXISTS idx_supplier_products_employee ON supplier_products(employee_id);
+
     -- 收藏字段（老表升级用，幂等）
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_favorite boolean NOT NULL DEFAULT false;
   `);

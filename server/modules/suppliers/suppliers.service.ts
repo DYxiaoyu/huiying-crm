@@ -1,0 +1,237 @@
+import {
+  Injectable,
+  Inject,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { DRIZZLE_DATABASE } from '@server/database/database.module';
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { supplierProducts } from '@server/database/schema';
+import { eq, and, count, desc, asc, ilike, or } from 'drizzle-orm';
+import type {
+  SupplierProduct,
+  SupplierListResponse,
+  CreateSupplierProductDto,
+  UpdateSupplierProductDto,
+  ImportSupplierItem,
+  ImportResult,
+} from '@shared/api.interface';
+
+interface ListParams {
+  page: number;
+  pageSize: number;
+  keyword?: string;
+  category?: string;
+  sortBy?: 'updatedAt' | 'createdAt' | 'productName' | 'price';
+  sortOrder?: 'asc' | 'desc';
+}
+
+@Injectable()
+export class SuppliersService {
+  private readonly logger = new Logger(SuppliersService.name);
+
+  constructor(@Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase) {}
+
+  async list(params: ListParams, employeeId: string): Promise<SupplierListResponse> {
+    const { page, pageSize: rawPageSize, keyword, category, sortBy, sortOrder } = params;
+    const safePage = Math.max(1, page);
+    const safePageSize = Math.min(50, Math.max(1, rawPageSize));
+    const offset = (safePage - 1) * safePageSize;
+
+    const conditions = [eq(supplierProducts.employeeId, employeeId)];
+    if (keyword && keyword.trim()) {
+      const pattern = `%${keyword.trim()}%`;
+      conditions.push(or(
+        ilike(supplierProducts.productName, pattern),
+        ilike(supplierProducts.supplierName, pattern),
+        ilike(supplierProducts.category, pattern),
+        ilike(supplierProducts.spec, pattern),
+      ));
+    }
+    if (category && category.trim()) {
+      conditions.push(eq(supplierProducts.category, category.trim()));
+    }
+    const whereClause = and(...conditions);
+
+    const orderCol = sortBy === 'createdAt'
+      ? supplierProducts.createdAt
+      : sortBy === 'productName'
+        ? supplierProducts.productName
+        : sortBy === 'price'
+          ? supplierProducts.price
+          : supplierProducts.updatedAt;
+    const orderFn = sortOrder === 'asc' ? asc : desc;
+
+    const [countResult, rows, supplierRows] = await Promise.all([
+      this.db.select({ count: count() }).from(supplierProducts).where(whereClause),
+      this.db
+        .select()
+        .from(supplierProducts)
+        .where(whereClause)
+        .orderBy(orderFn(orderCol))
+        .limit(safePageSize)
+        .offset(offset),
+      this.db
+        .select({ supplierName: supplierProducts.supplierName })
+        .from(supplierProducts)
+        .where(eq(supplierProducts.employeeId, employeeId)),
+    ]);
+
+    const total = Number(countResult[0]?.count ?? 0);
+    const supplierSet = new Set<string>();
+    for (const r of supplierRows) {
+      if (r.supplierName) supplierSet.add(r.supplierName);
+    }
+
+    return {
+      items: rows.map((row) => this.toSupplierProduct(row)),
+      total,
+      page: safePage,
+      pageSize: safePageSize,
+      supplierCount: supplierSet.size,
+    };
+  }
+
+  async categories(employeeId: string): Promise<string[]> {
+    const rows = await this.db
+      .select({ category: supplierProducts.category })
+      .from(supplierProducts)
+      .where(eq(supplierProducts.employeeId, employeeId));
+    const set = new Set<string>();
+    for (const r of rows) {
+      if (r.category && r.category.trim()) set.add(r.category.trim());
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  }
+
+  async create(dto: CreateSupplierProductDto, employeeId: string): Promise<SupplierProduct> {
+    if (!dto.productName || !dto.productName.trim()) {
+      throw new BadRequestException('商品名称不能为空');
+    }
+    if (!dto.supplierName || !dto.supplierName.trim()) {
+      throw new BadRequestException('供应商名称不能为空');
+    }
+    const inserted = await this.db
+      .insert(supplierProducts)
+      .values({
+        productName: dto.productName.trim(),
+        supplierName: dto.supplierName.trim(),
+        category: dto.category?.trim() || null,
+        price: dto.price?.trim() || null,
+        unit: dto.unit?.trim() || null,
+        spec: dto.spec?.trim() || null,
+        imageUrl: dto.imageUrl || null,
+        remark: dto.remark?.trim() || null,
+        employeeId,
+      })
+      .returning();
+    this.logger.log(`创建供应商商品成功: ${inserted[0].id}`);
+    return this.toSupplierProduct(inserted[0]);
+  }
+
+  async update(id: string, dto: UpdateSupplierProductDto, employeeId: string): Promise<SupplierProduct> {
+    const existing = await this.db
+      .select()
+      .from(supplierProducts)
+      .where(and(eq(supplierProducts.id, id), eq(supplierProducts.employeeId, employeeId)))
+      .limit(1);
+    if (existing.length === 0) {
+      throw new NotFoundException('商品不存在');
+    }
+
+    const patch: Partial<typeof supplierProducts.$inferInsert> = {};
+    if (dto.productName !== undefined) patch.productName = dto.productName.trim();
+    if (dto.supplierName !== undefined) patch.supplierName = dto.supplierName.trim();
+    if (dto.category !== undefined) patch.category = dto.category.trim() || null;
+    if (dto.price !== undefined) patch.price = dto.price.trim() || null;
+    if (dto.unit !== undefined) patch.unit = dto.unit.trim() || null;
+    if (dto.spec !== undefined) patch.spec = dto.spec.trim() || null;
+    if (dto.imageUrl !== undefined) patch.imageUrl = dto.imageUrl || null;
+    if (dto.remark !== undefined) patch.remark = dto.remark.trim() || null;
+
+    if (Object.keys(patch).length === 0) {
+      throw new BadRequestException('未提供可更新字段');
+    }
+
+    patch.updatedAt = new Date();
+
+    const updated = await this.db
+      .update(supplierProducts)
+      .set(patch)
+      .where(and(eq(supplierProducts.id, id), eq(supplierProducts.employeeId, employeeId)))
+      .returning();
+    this.logger.log(`更新供应商商品成功: ${id}`);
+    return this.toSupplierProduct(updated[0]);
+  }
+
+  async remove(id: string, employeeId: string): Promise<void> {
+    const existing = await this.db
+      .select()
+      .from(supplierProducts)
+      .where(and(eq(supplierProducts.id, id), eq(supplierProducts.employeeId, employeeId)))
+      .limit(1);
+    if (existing.length === 0) {
+      throw new NotFoundException('商品不存在');
+    }
+    await this.db.delete(supplierProducts).where(eq(supplierProducts.id, id));
+    this.logger.log(`删除供应商商品成功: ${id}`);
+  }
+
+  async importItems(items: ImportSupplierItem[], employeeId: string): Promise<ImportResult> {
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new BadRequestException('没有可导入的数据');
+    }
+    const errors: string[] = [];
+    let imported = 0;
+    const validRows: Array<typeof supplierProducts.$inferInsert> = [];
+
+    items.forEach((item, index) => {
+      const productName = item.productName?.trim();
+      const supplierName = item.supplierName?.trim();
+      if (!productName || !supplierName) {
+        errors.push(`第 ${index + 1} 行缺少商品名称或供应商名称`);
+        return;
+      }
+      validRows.push({
+        productName,
+        supplierName,
+        category: item.category?.trim() || null,
+        price: item.price?.trim() || null,
+        unit: item.unit?.trim() || null,
+        spec: item.spec?.trim() || null,
+        remark: item.remark?.trim() || null,
+        employeeId,
+      });
+    });
+
+    if (validRows.length > 0) {
+      // 分批插入（每批 200 条），避免单条超长 SQL
+      for (let i = 0; i < validRows.length; i += 200) {
+        const batch = validRows.slice(i, i + 200);
+        await this.db.insert(supplierProducts).values(batch);
+      }
+      imported = validRows.length;
+    }
+
+    this.logger.log(`导入供应商商品成功: ${imported} 条, 跳过 ${items.length - imported} 条`);
+    return { imported, skipped: items.length - imported, errors };
+  }
+
+  private toSupplierProduct(row: typeof supplierProducts.$inferSelect): SupplierProduct {
+    return {
+      id: row.id,
+      productName: row.productName,
+      supplierName: row.supplierName,
+      category: row.category,
+      price: row.price,
+      unit: row.unit,
+      spec: row.spec,
+      imageUrl: row.imageUrl,
+      remark: row.remark,
+      employeeId: row.employeeId ?? '',
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+}

@@ -6,6 +6,7 @@ import { DatabaseModule } from './database/database.module';
 import { ViewModule } from './modules/view/view.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CustomersModule } from './modules/customers/customers.module';
+import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { FollowUpsModule } from './modules/follow-ups/follow-ups.module';
 
@@ -17,6 +18,7 @@ import { FollowUpsModule } from './modules/follow-ups/follow-ups.module';
     // Place all business modules here.Do NOT add fallback modules here.
     AuthModule,
     CustomersModule,
+    SuppliersModule,
     DashboardModule,
     FollowUpsModule,
     // ====== @route-section: business-modules END ======
