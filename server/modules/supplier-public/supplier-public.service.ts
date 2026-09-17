@@ -29,7 +29,7 @@ const DOC_MIME = new Set([
   'application/x-7z-compressed',
 ]);
 const MAX_IMAGE_DATA = 4 * 1024 * 1024; // base64 字符串长度 ≈ 3MB 文件
-const MAX_FILE_DATA = 280 * 1024 * 1024; // base64 ≈ 200MB 文件
+const MAX_FILE_DATA = 70 * 1024 * 1024; // base64 ≈ 50MB 文件（Render 512MB 内存安全值；搬自有服务器后调大）
 const MAX_FILES = 20;
 
 @Injectable()
@@ -110,7 +110,7 @@ export class SupplierPublicService {
           throw new BadRequestException(`文件「${name}」格式不支持，仅支持 PDF / Excel / Word / CSV`);
         }
         if (data.length > MAX_FILE_DATA) {
-          throw new BadRequestException(`文件「${name}」过大，请压缩到 200MB 以内`);
+          throw new BadRequestException(`文件「${name}」过大，请压缩到 50MB 以内`);
         }
         // 防止危险文件名
         const safeName = name.replace(/[\\/:*?"<>|]/g, '_').slice(0, 120);

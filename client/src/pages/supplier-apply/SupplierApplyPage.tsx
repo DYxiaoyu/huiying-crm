@@ -46,7 +46,7 @@ const DOC_MIME = [
   'application/x-7z-compressed',
 ];
 const MAX_IMAGES = 500;
-const MAX_FILE_MB = 200;
+const MAX_FILE_MB = 50;
 const MAX_FILES = 20;
 const IMG_MAX_EDGE = 800;
 const IMG_QUALITY = 0.72;
