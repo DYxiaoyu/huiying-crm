@@ -461,7 +461,7 @@ const SuppliersPage = () => {
                   >
                     {/* 商品图区 */}
                     <div
-                      className="relative aspect-[4/3] flex items-center justify-center overflow-hidden"
+                      className="relative aspect-[16/10] flex items-center justify-center overflow-hidden"
                       style={{
                         background: 'linear-gradient(135deg, #FEF3E2 0%, #FCE4C8 100%)',
                       }}
@@ -512,19 +512,19 @@ const SuppliersPage = () => {
 
                     {/* 多图缩略条 */}
                     {allImages.length > 1 && (
-                      <div className="flex gap-1 px-3 pt-2 overflow-x-auto">
+                      <div className="flex gap-1 px-2 pt-1.5 overflow-x-auto">
                         {allImages.slice(0, 6).map((img, idx) => (
                           <button
                             key={idx}
                             type="button"
                             onClick={() => openLightbox(allImages, idx)}
-                            className="shrink-0 size-12 rounded-md overflow-hidden border border-[#EAECF0] hover:border-[#D97706] transition-colors"
+                            className="shrink-0 size-9 rounded overflow-hidden border border-[#EAECF0] hover:border-[#D97706] transition-colors"
                           >
                             <img src={img} alt="" className="w-full h-full object-cover" />
                           </button>
                         ))}
                         {allImages.length > 6 && (
-                          <span className="shrink-0 size-12 rounded-md bg-[#F2F4F7] text-[#5B6773] text-[10px] flex items-center justify-center font-medium">
+                          <span className="shrink-0 size-9 rounded bg-[#F2F4F7] text-[#5B6773] text-[9px] flex items-center justify-center font-medium">
                             +{allImages.length - 6}
                           </span>
                         )}
@@ -532,19 +532,19 @@ const SuppliersPage = () => {
                     )}
 
                     {/* 商品信息 */}
-                    <div className="p-3 flex flex-col gap-1.5 flex-1">
+                    <div className="p-2.5 flex flex-col gap-1 flex-1">
                       <div className="flex items-baseline gap-1">
-                        <span className="text-[17px] font-bold text-[#D97706]">
+                        <span className="text-[15px] font-bold text-[#D97706]">
                           {product.price ? `¥${product.price}` : '价格面议'}
                         </span>
                         {product.unit && (
                           <span className="text-[11px] text-[#98A2B3]">/{product.unit}</span>
                         )}
                       </div>
-                      <div className="text-[13.5px] font-medium text-[#1D2733] leading-snug line-clamp-2 min-h-[36px]">
+                      <div className="text-[13px] font-medium text-[#1D2733] leading-snug line-clamp-1">
                         {product.productName}
                       </div>
-                      <div className="mt-auto pt-1 space-y-1">
+                      <div className="mt-auto pt-0.5 space-y-0.5">
                         {product.spec && (
                           <div className="flex items-center gap-1 text-[11.5px] text-[#5B6773] truncate">
                             <Ruler className="size-3 shrink-0 text-[#98A2B3]" />
@@ -584,12 +584,13 @@ const SuppliersPage = () => {
                             {product.files && product.files.length > 0 && (
                               <button
                                 type="button"
-                                onClick={() =>
+                                onClick={() => {
                                   setFilesOfProduct({
                                     name: product.productName,
                                     files: product.files ?? [],
-                                  })
-                                }
+                                  });
+                                  setFilesDialogOpen(true);
+                                }}
                                 className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[#B45309] hover:underline"
                               >
                                 <Paperclip className="size-3" />
@@ -602,15 +603,15 @@ const SuppliersPage = () => {
                     </div>
 
                     {/* 操作区 */}
-                    <div className="px-3 pb-3 grid grid-cols-2 gap-2">
+                    <div className="px-2.5 pb-2.5 grid grid-cols-2 gap-1.5">
                       {showApprove && (
                         <button
                           type="button"
                           onClick={() => void handleApprove(product.id)}
                           disabled={approvingId === product.id}
-                          className={`inline-flex items-center justify-center gap-1 py-2 rounded-lg text-[12.5px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 disabled:opacity-60 transition-colors ${showReject ? '' : 'col-span-2'}`}
+                          className={`inline-flex items-center justify-center gap-1 py-1.5 rounded-md text-[11.5px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 disabled:opacity-60 transition-colors ${showReject ? '' : 'col-span-2'}`}
                         >
-                          <Check className="size-3.5" />
+                          <Check className="size-3" />
                           {approvingId === product.id ? '处理中...' : '通过'}
                         </button>
                       )}
@@ -618,34 +619,34 @@ const SuppliersPage = () => {
                         <button
                           type="button"
                           onClick={() => handleRejectClick(product)}
-                          className={`inline-flex items-center justify-center gap-1 py-2 rounded-lg text-[12.5px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 transition-colors ${showApprove ? '' : 'col-span-2'}`}
+                          className={`inline-flex items-center justify-center gap-1 py-1.5 rounded-md text-[11.5px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 transition-colors ${showApprove ? '' : 'col-span-2'}`}
                         >
-                          <XCircle className="size-3.5" />
+                          <XCircle className="size-3" />
                           驳回
                         </button>
                       )}
                       <button
                         type="button"
                         onClick={() => handleEdit(product)}
-                        className="inline-flex items-center justify-center gap-1 py-2 rounded-lg text-[12.5px] font-semibold text-[#B45309] bg-[#FFF7E6] hover:bg-[#FDE8C8] active:bg-[#F8DCA8] transition-colors"
+                        className="inline-flex items-center justify-center gap-1 py-1.5 rounded-md text-[11.5px] font-semibold text-[#B45309] bg-[#FFF7E6] hover:bg-[#FDE8C8] active:bg-[#F8DCA8] transition-colors"
                       >
-                        <Pencil className="size-3.5" />
+                        <Pencil className="size-3" />
                         编辑
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDeleteClick(product.id)}
-                        className="inline-flex items-center justify-center gap-1 py-2 rounded-lg text-[12.5px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 transition-colors"
+                        className="inline-flex items-center justify-center gap-1 py-1.5 rounded-md text-[11.5px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 transition-colors"
                       >
-                        <Trash2 className="size-3.5" />
+                        <Trash2 className="size-3" />
                         删除
                       </button>
                     </div>
 
                     {/* 驳回理由 */}
                     {product.status === 'rejected' && product.rejectReason && (
-                      <div className="px-3 pb-3 -mt-1">
-                        <div className="px-2.5 py-2 rounded-lg bg-rose-50 border border-rose-100 text-[11.5px] text-rose-700 leading-relaxed">
+                      <div className="px-2.5 pb-2.5 -mt-0.5">
+                        <div className="px-2 py-1.5 rounded-md bg-rose-50 border border-rose-100 text-[11px] text-rose-700 leading-relaxed">
                           <span className="font-semibold">驳回原因：</span>
                           {product.rejectReason}
                         </div>
