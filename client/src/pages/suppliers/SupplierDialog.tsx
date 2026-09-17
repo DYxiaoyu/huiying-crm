@@ -1,5 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
+import { Image as ImageIcon, FileUp, X } from 'lucide-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { logger } from '@lark-apaas/client-toolkit/logger';
@@ -371,6 +373,59 @@ export function SupplierDialog({
                 </FormItem>
               )}
             />
+
+            {/* 图片上传 */}
+            <div className="border-t border-[#F0F2F5] pt-3">
+              <label className="text-sm font-medium text-[#1D2733]">商品图片（最多500张，自动压缩）</label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {images.map((img, idx) => (
+                  <div key={idx} className="relative size-20 rounded-lg overflow-hidden border border-[#E4E7EC]">
+                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setImages((prev) => prev.filter((_, i) => i !== idx))}
+                      className="absolute top-0.5 right-0.5 size-4 rounded-full bg-black/60 text-white flex items-center justify-center"
+                    >
+                      <X className="size-2.5" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => imgInputRef.current?.click()}
+                  className="size-20 rounded-lg border-2 border-dashed border-[#D9DDE3] text-[#98A2B3] flex flex-col items-center justify-center gap-1 hover:border-[#D97706] hover:text-[#D97706] transition-colors"
+                >
+                  <ImageIcon className="size-5" />
+                  <span className="text-[11px]">选择图片</span>
+                </button>
+              </div>
+              <input ref={imgInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => void handleImgPick(e)} />
+            </div>
+
+            {/* 文件上传 */}
+            <div>
+              <label className="text-sm font-medium text-[#1D2733]">商品资料文件（PDF/Excel/压缩包，单个≤50MB）</label>
+              <div className="mt-2 space-y-1.5">
+                {files.map((f, idx) => (
+                  <div key={idx} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#FFFBF5] border border-[#FDE8C8]">
+                    <FileUp className="size-4 text-[#D97706] shrink-0" />
+                    <span className="flex-1 text-[12.5px] text-[#1D2733] truncate">{f.name}</span>
+                    <span className="text-[11px] text-[#98A2B3]">{(f.size/1024/1024).toFixed(2)}MB</span>
+                    <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i !== idx))}>
+                      <X className="size-3.5 text-rose-500" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-3 rounded-lg border-2 border-dashed border-[#D9DDE3] text-[#98A2B3] text-sm hover:border-[#D97706] hover:text-[#D97706] transition-colors"
+                >
+                  点击上传文件（支持多选）
+                </button>
+              </div>
+              <input ref={fileInputRef} type="file" multiple accept=".pdf,.xlsx,.xls,.doc,.docx,.csv,.zip,.rar,.7z" className="hidden" onChange={handleFilePick} />
+            </div>
 
             <DialogFooter>
               <Button
