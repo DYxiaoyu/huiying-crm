@@ -19,6 +19,9 @@ import {
   X,
   FileText,
   Sparkles,
+  Plus,
+  ChevronDown,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@lark-apaas/client-toolkit/logger';
@@ -37,9 +40,11 @@ const DOC_MIME = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'text/csv',
 ];
-const MAX_IMAGE_MB = 3;
+const MAX_IMAGES = 500;
 const MAX_FILE_MB = 8;
-const MAX_FILES = 5;
+const MAX_FILES = 20;
+const IMG_MAX_EDGE = 800;
+const IMG_QUALITY = 0.72;
 
 interface RejectedRecord {
   productName: string;
@@ -47,11 +52,57 @@ interface RejectedRecord {
   updatedAt: string;
 }
 
+interface ProductItem {
+  productName: string;
+  price: string;
+  unit: string;
+  spec: string;
+  productUrl: string;
+  remark: string;
+}
+
 type Step = 'key' | 'form' | 'success';
 
 const inputCls =
   'w-full px-3.5 py-2.5 rounded-lg border border-[#E4E7EC] bg-white text-[14px] text-[#1D2733] placeholder:text-[#98A2B3] outline-none focus:border-[#D97706] focus:ring-2 focus:ring-[#D97706]/20 transition-all';
 const labelCls = 'block text-[13px] font-medium text-[#5B6773] mb-1.5';
+
+const emptyProduct = (): ProductItem => ({
+  productName: '',
+  price: '',
+  unit: '',
+  spec: '',
+  productUrl: '',
+  remark: '',
+});
+
+const compressImage = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width;
+        let h = img.height;
+        if (w > IMG_MAX_EDGE || h > IMG_MAX_EDGE) {
+          const r = Math.min(IMG_MAX_EDGE / w, IMG_MAX_EDGE / h);
+          w = Math.round(w * r);
+          h = Math.round(h * r);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('canvas'));
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', IMG_QUALITY));
+      };
+      img.onerror = reject;
+      img.src = String(reader.result);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 
 const SupplierApplyPage = () => {
   const [step, setStep] = useState<Step>('key');
@@ -69,16 +120,12 @@ const SupplierApplyPage = () => {
   const [address, setAddress] = useState('');
   const [mainCategory, setMainCategory] = useState('');
 
-  // 商品信息
-  const [productName, setProductName] = useState('');
-  const [price, setPrice] = useState('');
-  const [unit, setUnit] = useState('');
-  const [spec, setSpec] = useState('');
-  const [productUrl, setProductUrl] = useState('');
-  const [remark, setRemark] = useState('');
+  // 多商品
+  const [products, setProducts] = useState<ProductItem[]>([emptyProduct()]);
+  const [openIdx, setOpenIdx] = useState(0);
 
-  const [imageData, setImageData] = useState('');
-  const [imageName, setImageName] = useState('');
+  // 多图 + 文件
+  const [images, setImages] = useState<{ dataUrl: string; name: string }[]>([]);
   const [files, setFiles] = useState<SupplierFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -120,51 +167,90 @@ const SupplierApplyPage = () => {
     }
   };
 
-  const readImage = (file: File) => {
-    if (!IMAGE_MIME.includes(file.type)) {
-      toast.error('仅支持 jpg / png / webp / gif 图片');
+  const handleImagesPicked = async (fileList: FileList | null) => {
+    if (!fileList) return;
+    const arr = Array.from(fileList);
+    const remain = MAX_IMAGES - images.length;
+    if (remain <= 0) {
+      toast.error(`最多上传 ${MAX_IMAGES} 张图片`);
       return;
     }
-    if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
-      toast.error(`图片不能超过 ${MAX_IMAGE_MB}MB`);
-      return;
+    const picked = arr.slice(0, remain);
+    if (arr.length > remain) toast.warning(`超出 ${MAX_IMAGES} 张，仅添加前 ${remain} 张`);
+    const added: { dataUrl: string; name: string }[] = [];
+    for (const f of picked) {
+      if (!IMAGE_MIME.includes(f.type)) {
+        toast.error(`「${f.name}」格式不支持，仅支持 jpg / png / webp / gif`);
+        continue;
+      }
+      try {
+        const url = await compressImage(f);
+        added.push({ dataUrl: url, name: f.name });
+      } catch {
+        toast.error(`「${f.name}」处理失败`);
+      }
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setImageData(String(reader.result));
-      setImageName(file.name);
-    };
-    reader.readAsDataURL(file);
+    if (added.length) setImages((prev) => [...prev, ...added]);
   };
 
-  const readFile = (file: File) => {
-    if (!DOC_MIME.includes(file.type)) {
-      toast.error(`「${file.name}」格式不支持，仅支持 PDF / Excel / Word / CSV`);
-      return;
-    }
-    if (file.size > MAX_FILE_MB * 1024 * 1024) {
-      toast.error(`「${file.name}」不能超过 ${MAX_FILE_MB}MB`);
-      return;
-    }
-    if (files.length >= MAX_FILES) {
+  const handleFilesPicked = async (fileList: FileList | null) => {
+    if (!fileList) return;
+    const arr = Array.from(fileList);
+    const remain = MAX_FILES - files.length;
+    if (remain <= 0) {
       toast.error(`最多上传 ${MAX_FILES} 个文件`);
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setFiles((prev) => [
-        ...prev,
-        { name: file.name, mime: file.type, size: file.size, data: String(reader.result) },
-      ]);
-    };
-    reader.readAsDataURL(file);
+    const picked = arr.slice(0, remain);
+    const added: SupplierFile[] = [];
+    for (const f of picked) {
+      if (!DOC_MIME.includes(f.type)) {
+        toast.error(`「${f.name}」格式不支持，仅支持 PDF / Excel / Word / CSV`);
+        continue;
+      }
+      if (f.size > MAX_FILE_MB * 1024 * 1024) {
+        toast.error(`「${f.name}」不能超过 ${MAX_FILE_MB}MB`);
+        continue;
+      }
+      const reader = new FileReader();
+      await new Promise<void>((resolve) => {
+        reader.onload = () => {
+          added.push({ name: f.name, mime: f.type, size: f.size, data: String(reader.result) });
+          resolve();
+        };
+        reader.readAsDataURL(f);
+      });
+    }
+    if (added.length) setFiles((prev) => [...prev, ...added]);
+  };
+
+  const updateProduct = (idx: number, patch: Partial<ProductItem>) => {
+    setProducts((prev) => prev.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
+  };
+
+  const addProduct = () => {
+    setProducts((prev) => [...prev, emptyProduct()]);
+    setOpenIdx(products.length);
+  };
+
+  const removeProduct = (idx: number) => {
+    setProducts((prev) => {
+      const next = prev.filter((_, i) => i !== idx);
+      if (next.length === 0) next.push(emptyProduct());
+      return next;
+    });
+    setOpenIdx(0);
   };
 
   const handleSubmit = async () => {
     if (!supplierName.trim()) return toast.error('请填写供应商名称');
     if (!contactName.trim()) return toast.error('请填写联系人姓名');
     if (!contactPhone.trim()) return toast.error('请填写联系电话');
-    if (!productName.trim()) return toast.error('请填写商品名称');
+
+    const validProducts = products.filter(
+      (p) => p.productName.trim() || p.price.trim() || p.spec.trim() || p.remark.trim() || p.productUrl.trim(),
+    );
+    const payloadProducts = validProducts.length > 0 ? validProducts : [emptyProduct()];
 
     setSubmitting(true);
     try {
@@ -176,13 +262,15 @@ const SupplierApplyPage = () => {
         wechat: wechat.trim() || undefined,
         address: address.trim() || undefined,
         mainCategory: mainCategory.trim() || undefined,
-        productName: productName.trim(),
-        price: price.trim() || undefined,
-        unit: unit.trim() || undefined,
-        spec: spec.trim() || undefined,
-        productUrl: productUrl.trim() || undefined,
-        remark: remark.trim() || undefined,
-        imageData: imageData || undefined,
+        products: payloadProducts.map((p) => ({
+          productName: p.productName.trim() || undefined,
+          price: p.price.trim() || undefined,
+          unit: p.unit.trim() || undefined,
+          spec: p.spec.trim() || undefined,
+          productUrl: p.productUrl.trim() || undefined,
+          remark: p.remark.trim() || undefined,
+        })),
+        images: images.map((i) => i.dataUrl),
         files: files.length > 0 ? files : undefined,
       });
       if (res.ok) {
@@ -205,14 +293,9 @@ const SupplierApplyPage = () => {
     setWechat('');
     setAddress('');
     setMainCategory('');
-    setProductName('');
-    setPrice('');
-    setUnit('');
-    setSpec('');
-    setProductUrl('');
-    setRemark('');
-    setImageData('');
-    setImageName('');
+    setProducts([emptyProduct()]);
+    setOpenIdx(0);
+    setImages([]);
     setFiles([]);
     setRejectedRecords([]);
     setStep('form');
@@ -382,115 +465,76 @@ const SupplierApplyPage = () => {
               </div>
             </section>
 
-            {/* 商品信息 */}
-            <section className="rounded-2xl bg-white shadow-sm border border-[#E4E7EC] overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-[#F0F2F5] flex items-center gap-2 bg-[#FFFBF5]">
-                <Package className="size-4.5 text-[#D97706]" />
-                <h2 className="text-[15px] font-semibold text-[#1D2733]">商品信息</h2>
-              </div>
-              <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <label className={labelCls}>
-                    <span className="text-rose-500 mr-0.5">*</span>商品名称
-                  </label>
-                  <input type="text" value={productName} onChange={(e) => setProductName(e.target.value)} placeholder="如：角向棘轮扳手 3/8" className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>价格</label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] text-[#98A2B3]">¥</span>
-                    <input type="text" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" className={`${inputCls} pl-8`} />
-                  </div>
-                </div>
-                <div>
-                  <label className={labelCls}>单位</label>
-                  <input type="text" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="把 / 台 / 片" className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>规格型号</label>
-                  <input type="text" value={spec} onChange={(e) => setSpec(e.target.value)} placeholder="如：DCZC 22" className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>商品链接</label>
-                  <input type="text" value={productUrl} onChange={(e) => setProductUrl(e.target.value)} placeholder="https://...（选填）" className={inputCls} />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className={labelCls}>备注</label>
-                  <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={2} placeholder="交期、起订量、优势等补充说明（选填）" className={`${inputCls} resize-none`} />
-                </div>
-              </div>
-            </section>
-
-            {/* 图片与文件 */}
+            {/* 图片与资料 */}
             <section className="rounded-2xl bg-white shadow-sm border border-[#E4E7EC] overflow-hidden">
               <div className="px-5 py-3.5 border-b border-[#F0F2F5] flex items-center gap-2 bg-[#FFFBF5]">
                 <ImagePlus className="size-4.5 text-[#D97706]" />
                 <h2 className="text-[15px] font-semibold text-[#1D2733]">图片与资料</h2>
-                <span className="text-[12px] text-[#98A2B3]">图片 ≤ {MAX_IMAGE_MB}MB，文件 ≤ {MAX_FILE_MB}MB</span>
+                <span className="text-[12px] text-[#98A2B3]">
+                  图片最多 {MAX_IMAGES} 张 · 文件最多 {MAX_FILES} 个（≤{MAX_FILE_MB}MB）
+                </span>
               </div>
-              <div className="p-5 space-y-4">
-                {/* 商品图片 */}
+              <div className="p-5 space-y-5">
+                {/* 商品图片：紧凑网格，小一点 */}
                 <div>
-                  <label className={labelCls}>商品图片（1 张）</label>
-                  {imageData ? (
-                    <div className="relative inline-block rounded-xl overflow-hidden border border-[#E4E7EC]">
-                      <img src={imageData} alt="商品图片" className="w-44 h-32 object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setImageData('');
-                          setImageName('');
-                        }}
-                        className="absolute top-1.5 right-1.5 size-7 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
-                      >
-                        <X className="size-4" />
-                      </button>
-                      <span className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded bg-black/50 text-white text-[11px] max-w-[70%] truncate">
-                        {imageName}
-                      </span>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => imageInputRef.current?.click()}
-                      className="w-full sm:w-56 h-32 rounded-xl border-2 border-dashed border-[#E4E7EC] bg-[#FBFCFE] flex flex-col items-center justify-center gap-1.5 text-[#98A2B3] hover:border-[#D97706] hover:text-[#D97706] transition-colors"
-                    >
-                      <ImagePlus className="size-7" />
-                      <span className="text-[13px]">点击上传商品图片</span>
-                    </button>
-                  )}
+                  <label className={labelCls}>商品图片（最多 {MAX_IMAGES} 张，自动压缩）</label>
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    className="w-full sm:w-44 h-20 rounded-xl border-2 border-dashed border-[#E4E7EC] bg-[#FBFCFE] flex flex-col items-center justify-center gap-1 text-[#98A2B3] hover:border-[#D97706] hover:text-[#D97706] transition-colors"
+                  >
+                    <ImagePlus className="size-5" />
+                    <span className="text-[12.5px]">选择图片{images.length > 0 ? `（已 ${images.length} 张）` : ''}</span>
+                  </button>
                   <input
                     ref={imageInputRef}
                     type="file"
                     accept="image/jpeg,image/png,image/webp,image/gif"
+                    multiple
                     className="hidden"
                     onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) readImage(file);
+                      void handleImagesPicked(e.target.files);
                       e.target.value = '';
                     }}
                   />
+                  {images.length > 0 && (
+                    <div className="mt-3 grid grid-cols-4 sm:grid-cols-5 gap-2">
+                      {images.map((img, idx) => (
+                        <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-[#E4E7EC] group">
+                          <img src={img.dataUrl} alt={img.name} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setImages((prev) => prev.filter((_, i) => i !== idx))}
+                            className="absolute top-0.5 right-0.5 size-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="size-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* 资料文件 */}
+                {/* 资料文件：大区域 */}
                 <div>
-                  <label className={labelCls}>商品资料文件（报价单 / 产品目录 PDF / 表格等，最多 {MAX_FILES} 个）</label>
+                  <label className={labelCls}>商品资料文件（报价单 / 产品目录 PDF / Excel / Word，最多 {MAX_FILES} 个）</label>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full sm:w-auto px-4 py-2.5 rounded-lg border border-[#E4E7EC] bg-white text-[13.5px] text-[#5B6773] hover:border-[#D97706] hover:text-[#B45309] inline-flex items-center gap-2 transition-colors"
+                    className="w-full min-h-[120px] rounded-xl border-2 border-dashed border-[#E4E7EC] bg-[#FFFBF5] flex flex-col items-center justify-center gap-2 text-[#98A2B3] hover:border-[#D97706] hover:text-[#B45309] transition-colors py-6"
                   >
-                    <Paperclip className="size-4" />
-                    选择文件
+                    <Paperclip className="size-8" />
+                    <span className="text-[14px] font-medium">点击上传文件</span>
+                    <span className="text-[11.5px]">支持多选 · 单个不超过 {MAX_FILE_MB}MB · 主要文件传这里</span>
                   </button>
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept=".pdf,.xlsx,.xls,.doc,.docx,.csv"
+                    multiple
                     className="hidden"
                     onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) readFile(file);
+                      void handleFilesPicked(e.target.files);
                       e.target.value = '';
                     }}
                   />
@@ -499,12 +543,12 @@ const SupplierApplyPage = () => {
                       {files.map((f, idx) => (
                         <li
                           key={idx}
-                          className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg bg-[#FFFBF5] border border-[#FDE8C8]"
+                          className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-[#FFFBF5] border border-[#FDE8C8]"
                         >
-                          <FileText className="size-4.5 text-[#D97706] shrink-0" />
+                          <FileText className="size-5 text-[#D97706] shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <div className="text-[13px] font-medium text-[#1D2733] truncate">{f.name}</div>
-                            <div className="text-[11px] text-[#98A2B3]">
+                            <div className="text-[13.5px] font-medium text-[#1D2733] truncate">{f.name}</div>
+                            <div className="text-[11.5px] text-[#98A2B3]">
                               {(f.size / 1024 / 1024).toFixed(2)} MB
                             </div>
                           </div>
@@ -520,6 +564,86 @@ const SupplierApplyPage = () => {
                     </ul>
                   )}
                 </div>
+              </div>
+            </section>
+
+            {/* 商品信息（可添加多个，可折叠） */}
+            <section className="rounded-2xl bg-white shadow-sm border border-[#E4E7EC] overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-[#F0F2F5] flex items-center gap-2 bg-[#FFFBF5]">
+                <Package className="size-4.5 text-[#D97706]" />
+                <h2 className="text-[15px] font-semibold text-[#1D2733]">商品信息</h2>
+                <span className="text-[12px] text-[#98A2B3]">已填 {products.length} 个 · 名称选填</span>
+              </div>
+              <div className="p-5 space-y-3">
+                {products.map((p, idx) => {
+                  const open = openIdx === idx;
+                  const summary = p.productName.trim() || `未命名商品 ${idx + 1}`;
+                  return (
+                    <div key={idx} className="rounded-xl border border-[#E4E7EC] overflow-hidden">
+                      <div
+                        className="flex items-center gap-2 px-4 py-3 bg-[#FBFCFE] cursor-pointer select-none"
+                        onClick={() => setOpenIdx(open ? -1 : idx)}
+                      >
+                        <ChevronDown className={`size-4 text-[#98A2B3] transition-transform ${open ? '' : '-rotate-90'}`} />
+                        <span className="text-[13px] font-medium text-[#1D2733] flex-1 truncate">
+                          商品 {idx + 1} · {summary}
+                        </span>
+                        {products.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeProduct(idx);
+                            }}
+                            className="size-7 rounded-lg text-[#98A2B3] hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors"
+                            title="删除此商品"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        )}
+                      </div>
+                      {open && (
+                        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="sm:col-span-2">
+                            <label className={labelCls}>商品名称（选填）</label>
+                            <input type="text" value={p.productName} onChange={(e) => updateProduct(idx, { productName: e.target.value })} placeholder="如：角向棘轮扳手 3/8" className={inputCls} />
+                          </div>
+                          <div>
+                            <label className={labelCls}>价格</label>
+                            <div className="relative">
+                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] text-[#98A2B3]">¥</span>
+                              <input type="text" value={p.price} onChange={(e) => updateProduct(idx, { price: e.target.value })} placeholder="0.00" className={`${inputCls} pl-8`} />
+                            </div>
+                          </div>
+                          <div>
+                            <label className={labelCls}>单位</label>
+                            <input type="text" value={p.unit} onChange={(e) => updateProduct(idx, { unit: e.target.value })} placeholder="把 / 台 / 片" className={inputCls} />
+                          </div>
+                          <div>
+                            <label className={labelCls}>规格型号</label>
+                            <input type="text" value={p.spec} onChange={(e) => updateProduct(idx, { spec: e.target.value })} placeholder="如：DCZC 22" className={inputCls} />
+                          </div>
+                          <div>
+                            <label className={labelCls}>商品链接</label>
+                            <input type="text" value={p.productUrl} onChange={(e) => updateProduct(idx, { productUrl: e.target.value })} placeholder="https://...（选填）" className={inputCls} />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className={labelCls}>备注</label>
+                            <textarea value={p.remark} onChange={(e) => updateProduct(idx, { remark: e.target.value })} rows={2} placeholder="交期、起订量、优势等补充说明（选填）" className={`${inputCls} resize-none`} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={addProduct}
+                  className="w-full py-3 rounded-xl border-2 border-dashed border-[#E4E7EC] text-[13.5px] font-medium text-[#D97706] bg-[#FFFBF5] hover:bg-[#FDE8C8] hover:border-[#D97706] transition-colors inline-flex items-center justify-center gap-1.5"
+                >
+                  <Plus className="size-4" />
+                  添加一个商品
+                </button>
               </div>
             </section>
 

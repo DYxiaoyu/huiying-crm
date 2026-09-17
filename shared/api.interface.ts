@@ -249,6 +249,15 @@ export interface ImportSupplierItem {
 
 // ===== 供应商公开提交 =====
 
+export interface PublicProductItem {
+  productName?: string;
+  price?: string;
+  unit?: string;
+  spec?: string;
+  productUrl?: string;
+  remark?: string;
+}
+
 export interface PublicApplyDto {
   key: string;
   supplierName: string;
@@ -257,13 +266,15 @@ export interface PublicApplyDto {
   wechat?: string;
   address?: string;
   mainCategory?: string;
-  productName: string;
+  productName?: string; // 兼容旧版单个商品（非必填）
   price?: string;
   unit?: string;
   spec?: string;
   productUrl?: string;
   remark?: string;
-  imageData?: string; // base64 图片
+  products?: PublicProductItem[]; // 多商品列表
+  imageData?: string; // base64 单图（兼容旧版，作为封面）
+  images?: string[]; // base64 多图
   files?: SupplierFile[];
 }
 

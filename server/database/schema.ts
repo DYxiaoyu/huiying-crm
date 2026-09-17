@@ -198,13 +198,14 @@ export const customers = pgTable("customers", {
 
 export const supplierProducts = pgTable("supplier_products", {
   id: uuid("id").primaryKey().defaultRandom(),
-  productName: varchar("product_name", { length: 200 }).notNull(),
+  productName: varchar("product_name", { length: 200 }),
   supplierName: varchar("supplier_name", { length: 200 }).notNull(),
   category: varchar("category", { length: 100 }),
   price: varchar("price", { length: 50 }),
   unit: varchar("unit", { length: 20 }),
   spec: varchar("spec", { length: 200 }),
   imageUrl: text("image_url"),
+  images: text("images"), // JSON 数组：多张商品图 base64
   remark: text("remark"),
   // 供应商联系信息
   contactName: varchar("contact_name", { length: 100 }),

@@ -98,6 +98,8 @@ async function ensureSchema(client: postgres.Sql): Promise<void> {
     ALTER TABLE supplier_products ADD COLUMN IF NOT EXISTS status varchar(20) NOT NULL DEFAULT 'pending';
     ALTER TABLE supplier_products ADD COLUMN IF NOT EXISTS reject_reason text;
     ALTER TABLE supplier_products ADD COLUMN IF NOT EXISTS submit_key varchar(100);
+    ALTER TABLE supplier_products ADD COLUMN IF NOT EXISTS images text;
+    ALTER TABLE supplier_products ALTER COLUMN product_name DROP NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_supplier_products_status ON supplier_products(status);
 
     CREATE TABLE IF NOT EXISTS supplier_keys (
