@@ -291,6 +291,15 @@ export class SuppliersService {
         files = null;
       }
     }
+    let images: string[] | null = null;
+    if (row.images) {
+      try {
+        const parsed = JSON.parse(row.images);
+        if (Array.isArray(parsed)) images = parsed as string[];
+      } catch {
+        images = null;
+      }
+    }
     return {
       id: row.id,
       productName: row.productName,
@@ -300,6 +309,7 @@ export class SuppliersService {
       unit: row.unit,
       spec: row.spec,
       imageUrl: row.imageUrl,
+      images,
       remark: row.remark,
       contactName: row.contactName,
       contactPhone: row.contactPhone,

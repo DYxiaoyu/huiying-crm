@@ -22,10 +22,15 @@ const DOC_MIME = new Set([
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'text/csv',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-rar-compressed',
+  'application/vnd.rar',
+  'application/x-7z-compressed',
 ]);
 const MAX_IMAGE_DATA = 4 * 1024 * 1024; // base64 字符串长度 ≈ 3MB 文件
-const MAX_FILE_DATA = 10 * 1024 * 1024; // base64 字符串长度 ≈ 7.5MB 文件
-const MAX_FILES = 5;
+const MAX_FILE_DATA = 280 * 1024 * 1024; // base64 ≈ 200MB 文件
+const MAX_FILES = 20;
 
 @Injectable()
 export class SupplierPublicService {
@@ -105,7 +110,7 @@ export class SupplierPublicService {
           throw new BadRequestException(`文件「${name}」格式不支持，仅支持 PDF / Excel / Word / CSV`);
         }
         if (data.length > MAX_FILE_DATA) {
-          throw new BadRequestException(`文件「${name}」过大，请压缩到 8MB 以内`);
+          throw new BadRequestException(`文件「${name}」过大，请压缩到 200MB 以内`);
         }
         // 防止危险文件名
         const safeName = name.replace(/[\\/:*?"<>|]/g, '_').slice(0, 120);

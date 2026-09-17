@@ -39,9 +39,14 @@ const DOC_MIME = [
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'text/csv',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-rar-compressed',
+  'application/vnd.rar',
+  'application/x-7z-compressed',
 ];
 const MAX_IMAGES = 500;
-const MAX_FILE_MB = 8;
+const MAX_FILE_MB = 200;
 const MAX_FILES = 20;
 const IMG_MAX_EDGE = 800;
 const IMG_QUALITY = 0.72;
@@ -205,7 +210,7 @@ const SupplierApplyPage = () => {
     const added: SupplierFile[] = [];
     for (const f of picked) {
       if (!DOC_MIME.includes(f.type)) {
-        toast.error(`「${f.name}」格式不支持，仅支持 PDF / Excel / Word / CSV`);
+        toast.error(`「${f.name}」格式不支持，仅支持 PDF / Excel / Word / CSV / 压缩包`);
         continue;
       }
       if (f.size > MAX_FILE_MB * 1024 * 1024) {
@@ -517,7 +522,7 @@ const SupplierApplyPage = () => {
 
                 {/* 资料文件：大区域 */}
                 <div>
-                  <label className={labelCls}>商品资料文件（报价单 / 产品目录 PDF / Excel / Word，最多 {MAX_FILES} 个）</label>
+                  <label className={labelCls}>商品资料文件（报价单 / 产品目录 PDF / Excel / Word / 压缩包，最多 {MAX_FILES} 个）</label>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
@@ -525,12 +530,12 @@ const SupplierApplyPage = () => {
                   >
                     <Paperclip className="size-8" />
                     <span className="text-[14px] font-medium">点击上传文件</span>
-                    <span className="text-[11.5px]">支持多选 · 单个不超过 {MAX_FILE_MB}MB · 主要文件传这里</span>
+                    <span className="text-[11.5px]">支持多选 · 单个不超过 {MAX_FILE_MB}MB（含压缩包）· 主要文件传这里</span>
                   </button>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".pdf,.xlsx,.xls,.doc,.docx,.csv"
+                    accept=".pdf,.xlsx,.xls,.doc,.docx,.csv,.zip,.rar,.7z"
                     multiple
                     className="hidden"
                     onChange={(e) => {

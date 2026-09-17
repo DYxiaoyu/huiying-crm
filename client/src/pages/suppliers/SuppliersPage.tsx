@@ -103,6 +103,20 @@ const SuppliersPage = () => {
   const [filesDialogOpen, setFilesDialogOpen] = useState(false);
   const [filesOfProduct, setFilesOfProduct] = useState<{ name: string; files: SupplierFile[] } | null>(null);
 
+  // 图片灯箱
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImages, setLightboxImages] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  // PDF 在线预览
+  const [previewPdf, setPreviewPdf] = useState<SupplierFile | null>(null);
+
+  const openLightbox = (images: string[], startIdx = 0) => {
+    setLightboxImages(images);
+    setLightboxIndex(startIdx);
+    setLightboxOpen(true);
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { sortBy, sortOrder } = useMemo(() => {
@@ -439,6 +453,7 @@ const SuppliersPage = () => {
                 const st = STATUS_STYLE[product.status] || STATUS_STYLE.pending;
                 const showApprove = product.status === 'pending' || product.status === 'rejected';
                 const showReject = product.status === 'pending' || product.status === 'approved';
+                const allImages = [product.imageUrl, ...(product.images ?? [])].filter(Boolean) as string[];
                 return (
                   <div
                     key={product.id}
@@ -451,25 +466,29 @@ const SuppliersPage = () => {
                         background: 'linear-gradient(135deg, #FEF3E2 0%, #FCE4C8 100%)',
                       }}
                     >
-                      {product.imageUrl ? (
-                        <a
-                          href={product.imageUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                      {allImages.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => openLightbox(allImages, 0)}
                           className="block w-full h-full"
-                          title="点击查看大图"
+                          title="点击查看全部图片"
                         >
                           <img
-                            src={product.imageUrl}
+                            src={allImages[0]}
                             alt={product.productName}
                             className="w-full h-full object-cover"
                           />
-                        </a>
+                        </button>
                       ) : (
                         <div className="flex flex-col items-center gap-1.5 text-[#D97706]/60">
                           <Package className="size-9" />
                           <span className="text-[11px]">暂无图片</span>
                         </div>
+                      )}
+                      {allImages.length > 1 && (
+                        <span className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/55 text-white text-[11px] font-medium shadow-sm">
+                          📷 {allImages.length}
+                        </span>
                       )}
                       {product.category && (
                         <span className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/90 text-[#B45309] text-[11px] font-medium shadow-sm">
@@ -490,6 +509,27 @@ const SuppliersPage = () => {
                         {st.label}
                       </span>
                     </div>
+
+                    {/* 多图缩略条 */}
+                    {allImages.length > 1 && (
+                      <div className="flex gap-1 px-3 pt-2 overflow-x-auto">
+                        {allImages.slice(0, 6).map((img, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => openLightbox(allImages, idx)}
+                            className="shrink-0 size-12 rounded-md overflow-hidden border border-[#EAECF0] hover:border-[#D97706] transition-colors"
+                          >
+                            <img src={img} alt="" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                        {allImages.length > 6 && (
+                          <span className="shrink-0 size-12 rounded-md bg-[#F2F4F7] text-[#5B6773] text-[10px] flex items-center justify-center font-medium">
+                            +{allImages.length - 6}
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     {/* 商品信息 */}
                     <div className="p-3 flex flex-col gap-1.5 flex-1">
@@ -706,40 +746,137 @@ const SuppliersPage = () => {
       </AlertDialog>
 
       {/* 附件列表弹窗 */}
-      <AlertDialog open={filesDialogOpen} onOpenChange={setFilesDialogOpen}>
-        <AlertDialogContent>
+      <AlertDialog
+        open={filesDialogOpen}
+        onOpenChange={(open) => {
+          setFilesDialogOpen(open);
+          if (!open) setPreviewPdf(null);
+        }}
+      >
+        <AlertDialogContent className="max-w-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {filesOfProduct ? `「${filesOfProduct.name}」附件` : '附件'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              供应商提交的商品资料文件，点击下载查看。
+              供应商提交的商品资料文件。PDF 可直接在线预览，其他文件点击下载。
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="space-y-2">
-            {filesOfProduct?.files.map((f, idx) => (
-              <a
-                key={idx}
-                href={f.data}
-                download={f.name}
-                className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg bg-[#FFFBF5] border border-[#FDE8C8] hover:bg-[#FDE8C8] transition-colors"
-              >
-                <FileText className="size-4.5 text-[#D97706] shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-medium text-[#1D2733] truncate">{f.name}</div>
-                  <div className="text-[11px] text-[#98A2B3]">
-                    {(f.size / 1024 / 1024).toFixed(2)} MB
+
+          {/* PDF 在线预览区 */}
+          {previewPdf && (
+            <div className="rounded-lg overflow-hidden border border-[#E4E7EC]">
+              <div className="flex items-center justify-between px-3 py-1.5 bg-[#F2F4F7]">
+                <span className="text-[12px] font-medium text-[#1D2733] truncate">{previewPdf.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setPreviewPdf(null)}
+                  className="text-[11.5px] text-[#5B6773] hover:text-rose-600"
+                >
+                  关闭预览
+                </button>
+              </div>
+              <iframe
+                src={previewPdf.data}
+                title={previewPdf.name}
+                className="w-full h-[420px] bg-white"
+              />
+            </div>
+          )}
+
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+            {filesOfProduct?.files.map((f, idx) => {
+              const isPdf = /\.pdf$/i.test(f.name);
+              return isPdf ? (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setPreviewPdf(f)}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg bg-[#FFFBF5] border border-[#FDE8C8] hover:bg-[#FDE8C8] transition-colors text-left"
+                >
+                  <FileText className="size-4.5 text-[#D97706] shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-medium text-[#1D2733] truncate">{f.name}</div>
+                    <div className="text-[11px] text-[#98A2B3]">
+                      {(f.size / 1024 / 1024).toFixed(2)} MB
+                    </div>
                   </div>
-                </div>
-                <span className="text-[12px] text-[#B45309] font-medium">下载</span>
-              </a>
-            ))}
+                  <span className="text-[12px] text-[#B45309] font-medium">预览</span>
+                </button>
+              ) : (
+                <a
+                  key={idx}
+                  href={f.data}
+                  download={f.name}
+                  className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg bg-[#FFFBF5] border border-[#FDE8C8] hover:bg-[#FDE8C8] transition-colors"
+                >
+                  <FileText className="size-4.5 text-[#D97706] shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-medium text-[#1D2733] truncate">{f.name}</div>
+                    <div className="text-[11px] text-[#98A2B3]">
+                      {(f.size / 1024 / 1024).toFixed(2)} MB
+                    </div>
+                  </div>
+                  <span className="text-[12px] text-[#B45309] font-medium">下载</span>
+                </a>
+              );
+            })}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>关闭</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 图片灯箱 */}
+      {lightboxOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center"
+          onClick={() => setLightboxOpen(false)}
+        >
+          <div
+            className="absolute top-4 right-4 text-white/80 text-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {lightboxIndex + 1} / {lightboxImages.length}
+          </div>
+          <button
+            type="button"
+            className="absolute top-4 right-16 text-white/80 hover:text-white text-xl"
+            onClick={() => setLightboxOpen(false)}
+          >
+            ✕
+          </button>
+          <div
+            className="max-w-[92vw] max-h-[82vh] flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={lightboxImages[lightboxIndex]}
+              alt=""
+              className="max-w-full max-h-[82vh] object-contain"
+            />
+          </div>
+          {lightboxImages.length > 1 && (
+            <div className="flex gap-3 mt-4" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                className="px-4 py-1.5 rounded-lg bg-white/15 text-white text-sm hover:bg-white/25"
+                onClick={() => setLightboxIndex((i) => (i - 1 + lightboxImages.length) % lightboxImages.length)}
+              >
+                ← 上一张
+              </button>
+              <button
+                type="button"
+                className="px-4 py-1.5 rounded-lg bg-white/15 text-white text-sm hover:bg-white/25"
+                onClick={() => setLightboxIndex((i) => (i + 1) % lightboxImages.length)}
+              >
+                下一张 →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

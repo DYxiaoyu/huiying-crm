@@ -153,6 +153,7 @@ export interface SupplierProduct {
   unit: string | null;
   spec: string | null;
   imageUrl: string | null;
+  images: string[] | null;
   remark: string | null;
   // 供应商联系信息（公开提交时填写）
   contactName: string | null;
