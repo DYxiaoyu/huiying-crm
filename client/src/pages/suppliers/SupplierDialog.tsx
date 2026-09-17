@@ -64,6 +64,63 @@ export function SupplierDialog({
   onSuccess,
 }: SupplierDialogProps) {
   const isEdit = !!product;
+  const [images, setImages] = useState<string[]>([]);
+  const [files, setFiles] = useState<SupplierFile[]>([]);
+  const imgInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const compressImage = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const maxW = 800;
+          const scale = Math.min(1, maxW / img.width);
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return reject(new Error('canvas error'));
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.72));
+        };
+        img.onerror = reject;
+        img.src = reader.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const handleImgPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = Array.from(e.target.files || []);
+    if (list.length === 0) return;
+    for (const f of list) {
+      try {
+        const data = await compressImage(f);
+        setImages((prev) => [...prev, data]);
+      } catch {
+        toast.error(`图片 ${f.name} 处理失败`);
+      }
+    }
+    if (imgInputRef.current) imgInputRef.current.value = '';
+  };
+
+  const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = Array.from(e.target.files || []);
+    for (const f of list) {
+      if (f.size > 50 * 1024 * 1024) {
+        toast.error(`${f.name} 超过50MB`);
+        continue;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFiles((prev) => [...prev, { name: f.name, size: f.size, data: reader.result as string }]);
+      };
+      reader.readAsDataURL(f);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const form = useForm<SupplierFormValues>({
     resolver: zodResolver(supplierSchema),
