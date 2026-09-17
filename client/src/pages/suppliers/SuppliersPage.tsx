@@ -481,7 +481,7 @@ const SuppliersPage = () => {
                   >
                     {/* 商品图区 */}
                     <div
-                      className="relative aspect-[16/10] flex items-center justify-center overflow-hidden"
+                      className="relative aspect-[3/4] flex items-center justify-center overflow-hidden"
                       style={{
                         background: 'linear-gradient(135deg, #FEF3E2 0%, #FCE4C8 100%)',
                       }}
