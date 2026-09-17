@@ -604,27 +604,6 @@ const SuppliersPage = () => {
 
                     {/* 操作区 */}
                     <div className="px-2.5 pb-2.5 grid grid-cols-2 gap-1.5">
-                      {showApprove && (
-                        <button
-                          type="button"
-                          onClick={() => void handleApprove(product.id)}
-                          disabled={approvingId === product.id}
-                          className={`inline-flex items-center justify-center gap-1 py-1.5 rounded-md text-[11.5px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 disabled:opacity-60 transition-colors ${showReject ? '' : 'col-span-2'}`}
-                        >
-                          <Check className="size-3" />
-                          {approvingId === product.id ? '处理中...' : '通过'}
-                        </button>
-                      )}
-                      {showReject && (
-                        <button
-                          type="button"
-                          onClick={() => handleRejectClick(product)}
-                          className={`inline-flex items-center justify-center gap-1 py-1.5 rounded-md text-[11.5px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 transition-colors ${showApprove ? '' : 'col-span-2'}`}
-                        >
-                          <XCircle className="size-3" />
-                          驳回
-                        </button>
-                      )}
                       <button
                         type="button"
                         onClick={() => handleEdit(product)}
