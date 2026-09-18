@@ -24,6 +24,11 @@ async function bootstrap() {
   app.use(cookieParser());
   app.set('trust proxy', true);
 
+  // 微信站长验证
+  app.get('/668f8dba359e1fbc0ae9efc9e983eab6.txt', (_req, res) => {
+    res.type('text/plain').send('ec59ae89a05ec1501e72cc5ac6cf82c382ec0fd6');
+  });
+
   // 注册视图引擎, 渲染 client 目录下的 html 文件
   // 注意：vite 产物中 HTML 位于 dist/client/client/index.html，静态资源位于 dist/client/assets
   app.setBaseViewsDir(join(process.cwd(), 'dist/client/client'));
