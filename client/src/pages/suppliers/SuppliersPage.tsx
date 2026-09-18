@@ -479,9 +479,9 @@ const SuppliersPage = () => {
                     key={product.id}
                     className="group relative flex flex-col rounded-xl border border-[#EAECF0] overflow-hidden hover:shadow-md hover:-translate-y-px transition-all"
                   >
-                    {/* 商品图区 */}
+                    {/* 商品图区（横版，缩略图和价格叠在图上） */}
                     <div
-                      className="relative aspect-[3/4] flex items-center justify-center overflow-hidden"
+                      className="relative aspect-[16/10] flex items-center justify-center overflow-hidden"
                       style={{
                         background: 'linear-gradient(135deg, #FEF3E2 0%, #FCE4C8 100%)',
                       }}
@@ -505,141 +505,119 @@ const SuppliersPage = () => {
                           <span className="text-[11px]">暂无图片</span>
                         </div>
                       )}
+
                       {allImages.length > 1 && (
-                        <span className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/55 text-white text-[11px] font-medium shadow-sm">
+                        <span className="absolute top-1.5 right-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-black/55 text-white text-[10px] font-medium shadow-sm">
                           📷 {allImages.length}
                         </span>
                       )}
+
                       {product.category && (
-                        <span className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/90 text-[#B45309] text-[11px] font-medium shadow-sm">
+                        <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-white/90 text-[#B45309] text-[10px] font-medium shadow-sm">
                           <Tag className="size-3" />
                           {product.category}
                         </span>
                       )}
+
                       <span
-                        className={`absolute bottom-2 right-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium shadow-sm ${st.cls}`}
+                        className="absolute bottom-2 right-2 text-[15px] font-extrabold text-[#FFD600] drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
                       >
-                        {product.status === 'pending' ? (
-                          <Clock className="size-3" />
-                        ) : product.status === 'approved' ? (
-                          <Check className="size-3" />
-                        ) : (
-                          <XCircle className="size-3" />
-                        )}
+                        {product.price ? `¥${product.price}` : '价格面议'}
+                      </span>
+
+                      {allImages.length > 1 && (
+                        <div className="absolute bottom-1.5 left-1.5 flex gap-1 max-w-[60%] overflow-hidden">
+                          {allImages.slice(1, 4).map((img, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => openLightbox(allImages, idx + 1)}
+                              className="shrink-0 size-9 rounded overflow-hidden border border-white/70 shadow-sm"
+                            >
+                              <img src={img} alt="" className="w-full h-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      <span
+                        className={`absolute top-1/2 right-1.5 -translate-y-1/2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium shadow-sm ${st.cls}`}
+                      >
                         {st.label}
                       </span>
                     </div>
 
-                    {/* 多图缩略条 */}
-                    {allImages.length > 1 && (
-                      <div className="flex gap-1 px-2 pt-1.5 overflow-x-auto">
-                        {allImages.slice(0, 6).map((img, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => openLightbox(allImages, idx)}
-                            className="shrink-0 size-9 rounded overflow-hidden border border-[#EAECF0] hover:border-[#D97706] transition-colors"
-                          >
-                            <img src={img} alt="" className="w-full h-full object-cover" />
-                          </button>
-                        ))}
-                        {allImages.length > 6 && (
-                          <span className="shrink-0 size-9 rounded bg-[#F2F4F7] text-[#5B6773] text-[9px] flex items-center justify-center font-medium">
-                            +{allImages.length - 6}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* 商品信息 */}
-                    <div className="p-2.5 flex flex-col gap-1 flex-1">
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-[15px] font-bold text-[#D97706]">
-                          {product.price ? `¥${product.price}` : '价格面议'}
-                        </span>
-                        {product.unit && (
-                          <span className="text-[11px] text-[#98A2B3]">/{product.unit}</span>
-                        )}
-                      </div>
+                    <div className="px-2 pt-1.5 pb-1 flex flex-col gap-0.5">
                       <div className="text-[13px] font-medium text-[#1D2733] leading-snug line-clamp-1">
                         {product.productName}
                       </div>
-                      <div className="mt-auto pt-0.5 space-y-0.5">
-                        {product.spec && (
-                          <div className="flex items-center gap-1 text-[11.5px] text-[#5B6773] truncate">
-                            <Ruler className="size-3 shrink-0 text-[#98A2B3]" />
-                            <span className="truncate">{product.spec}</span>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-1 text-[12px] text-[#B45309] truncate">
-                          <Store className="size-3.5 shrink-0" />
-                          <span className="truncate font-medium">{product.supplierName}</span>
-                        </div>
-                        {(product.contactName || product.contactPhone) && (
-                          <div className="flex items-center gap-1 text-[11.5px] text-[#5B6773] truncate">
-                            <Phone className="size-3 shrink-0 text-[#98A2B3]" />
-                            <span className="truncate">
-                              {product.contactName}
-                              {product.contactPhone ? ` · ${product.contactPhone}` : ''}
-                            </span>
-                          </div>
-                        )}
-                        {(product.productUrl || (product.files && product.files.length > 0)) && (
-                          <div className="flex items-center gap-3 pt-0.5">
-                            {product.productUrl && (
-                              <a
-                                href={
-                                  /^https?:\/\//i.test(product.productUrl)
-                                    ? product.productUrl
-                                    : `https://${product.productUrl}`
-                                }
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[#1D4ED8] hover:underline"
-                              >
-                                <ExternalLink className="size-3" />
-                                商品链接
-                              </a>
-                            )}
-                            {product.files && product.files.length > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setFilesOfProduct({
-                                    name: product.productName,
-                                    files: product.files ?? [],
-                                  });
-                                  setFilesDialogOpen(true);
-                                }}
-                                className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[#B45309] hover:underline"
-                              >
-                                <Paperclip className="size-3" />
-                                附件 {product.files.length}
-                              </button>
-                            )}
-                          </div>
-                        )}
+                      <div className="flex items-center gap-1 text-[11.5px] text-[#B45309] truncate">
+                        <Store className="size-3.5 shrink-0" />
+                        <span className="truncate font-medium">{product.supplierName}</span>
                       </div>
+                      {(product.contactName || product.contactPhone) && (
+                        <div className="flex items-center gap-1 text-[11px] text-[#5B6773] truncate">
+                          <Phone className="size-3 shrink-0" />
+                          <span className="truncate">
+                            {product.contactName}
+                            {product.contactPhone ? ` · ${product.contactPhone}` : ''}
+                          </span>
+                        </div>
+                      )}
+                      {(product.productUrl || (product.files && product.files.length > 0)) && (
+                        <div className="flex items-center gap-2 pt-0.5">
+                          {product.productUrl && (
+                            <a
+                              href={
+                                /^https?:\/\//i.test(product.productUrl)
+                                  ? product.productUrl
+                                  : `https://${product.productUrl}`
+                              }
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-0.5 text-[10.5px] font-medium text-[#1D4ED8] hover:underline"
+                            >
+                              <ExternalLink className="size-3" />
+                              链接
+                            </a>
+                          )}
+                          {product.files && product.files.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFilesOfProduct({
+                                  name: product.productName,
+                                  files: product.files ?? [],
+                                });
+                                setFilesDialogOpen(true);
+                              }}
+                              className="inline-flex items-center gap-0.5 text-[10.5px] font-medium text-[#B45309] hover:underline"
+                            >
+                              <Paperclip className="size-3" />
+                              附件{product.files.length}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
 
-                    {/* 操作区 */}
-                    <div className="px-2.5 pb-2.5 grid grid-cols-2 gap-1.5">
+                    <div className="px-2 pb-2 grid grid-cols-3 gap-1">
                       {showApprove && (
                         <button
                           type="button"
                           onClick={() => void handleApprove(product.id)}
                           disabled={approvingId === product.id}
-                          className={`inline-flex items-center justify-center gap-1 py-1.5 rounded-md text-[11.5px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 disabled:opacity-60 transition-colors ${showReject ? '' : 'col-span-2'}`}
+                          className="inline-flex items-center justify-center gap-0.5 py-1 rounded text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-60 transition-colors"
                         >
                           <Check className="size-3" />
-                          {approvingId === product.id ? '处理中...' : '通过'}
+                          通过
                         </button>
                       )}
                       {showReject && (
                         <button
                           type="button"
                           onClick={() => handleRejectClick(product)}
-                          className={`inline-flex items-center justify-center gap-1 py-1.5 rounded-md text-[11.5px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 transition-colors ${showApprove ? '' : 'col-span-2'}`}
+                          className="inline-flex items-center justify-center gap-0.5 py-1 rounded text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 transition-colors"
                         >
                           <XCircle className="size-3" />
                           驳回
@@ -648,7 +626,7 @@ const SuppliersPage = () => {
                       <button
                         type="button"
                         onClick={() => handleEdit(product)}
-                        className="inline-flex items-center justify-center gap-1 py-1.5 rounded-md text-[11.5px] font-semibold text-[#B45309] bg-[#FFF7E6] hover:bg-[#FDE8C8] active:bg-[#F8DCA8] transition-colors"
+                        className="inline-flex items-center justify-center gap-0.5 py-1 rounded text-[11px] font-semibold text-[#B45309] bg-[#FFF7E6] hover:bg-[#FDE8C8] transition-colors"
                       >
                         <Pencil className="size-3" />
                         编辑
@@ -656,17 +634,16 @@ const SuppliersPage = () => {
                       <button
                         type="button"
                         onClick={() => handleDeleteClick(product.id)}
-                        className="inline-flex items-center justify-center gap-1 py-1.5 rounded-md text-[11.5px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 transition-colors"
+                        className="inline-flex items-center justify-center gap-0.5 py-1 rounded text-[11px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors"
                       >
                         <Trash2 className="size-3" />
                         删除
                       </button>
                     </div>
 
-                    {/* 驳回理由 */}
                     {product.status === 'rejected' && product.rejectReason && (
-                      <div className="px-2.5 pb-2.5 -mt-0.5">
-                        <div className="px-2 py-1.5 rounded-md bg-rose-50 border border-rose-100 text-[11px] text-rose-700 leading-relaxed">
+                      <div className="px-2 pb-2">
+                        <div className="px-1.5 py-1 rounded bg-rose-50 text-[10.5px] text-rose-700 leading-snug">
                           <span className="font-semibold">驳回原因：</span>
                           {product.rejectReason}
                         </div>
