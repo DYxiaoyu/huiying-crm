@@ -196,6 +196,8 @@ export function SupplierDialog({
           address: values.address || undefined,
           mainCategory: values.mainCategory || undefined,
           productUrl: values.productUrl || undefined,
+          images: images.length > 0 ? images : undefined,
+          files: files.length > 0 ? files : undefined,
         };
         await suppliersApi.update(product.id, dto);
       } else {
@@ -213,6 +215,8 @@ export function SupplierDialog({
           address: values.address || undefined,
           mainCategory: values.mainCategory || undefined,
           productUrl: values.productUrl || undefined,
+          images: images.length > 0 ? images : undefined,
+          files: files.length > 0 ? files : undefined,
         };
         await suppliersApi.create(dto);
       }
