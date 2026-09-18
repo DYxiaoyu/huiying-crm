@@ -204,6 +204,8 @@ export interface CreateSupplierProductDto {
   address?: string;
   mainCategory?: string;
   productUrl?: string;
+  images?: string[];
+  files?: SupplierFile[];
 }
 
 export interface UpdateSupplierProductDto {
@@ -221,6 +223,8 @@ export interface UpdateSupplierProductDto {
   address?: string;
   mainCategory?: string;
   productUrl?: string;
+  images?: string[];
+  files?: SupplierFile[];
 }
 
 export interface ImportResult {

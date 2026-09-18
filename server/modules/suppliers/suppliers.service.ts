@@ -137,6 +137,8 @@ export class SuppliersService {
         address: dto.address?.trim() || null,
         mainCategory: dto.mainCategory?.trim() || null,
         productUrl: dto.productUrl?.trim() || null,
+        images: dto.images ? JSON.stringify(dto.images) : null,
+        files: dto.files ? JSON.stringify(dto.files) : null,
         status: 'approved',
         employeeId,
       })
@@ -170,6 +172,8 @@ export class SuppliersService {
     if (dto.address !== undefined) patch.address = dto.address.trim() || null;
     if (dto.mainCategory !== undefined) patch.mainCategory = dto.mainCategory.trim() || null;
     if (dto.productUrl !== undefined) patch.productUrl = dto.productUrl.trim() || null;
+    if (dto.images !== undefined) patch.images = dto.images ? JSON.stringify(dto.images) : null;
+    if (dto.files !== undefined) patch.files = dto.files ? JSON.stringify(dto.files) : null;
 
     if (Object.keys(patch).length === 0) {
       throw new BadRequestException('未提供可更新字段');
