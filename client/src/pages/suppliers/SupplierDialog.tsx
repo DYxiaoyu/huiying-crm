@@ -225,7 +225,7 @@ export function SupplierDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg w-[calc(100vw-16px)] max-h-[88vh] overflow-y-auto p-4">
         <DialogHeader>
           <DialogTitle>{isEdit ? '编辑商品' : '新增商品'}</DialogTitle>
         </DialogHeader>
