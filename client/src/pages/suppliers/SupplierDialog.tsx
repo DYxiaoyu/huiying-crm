@@ -159,6 +159,8 @@ export function SupplierDialog({
           mainCategory: product.mainCategory ?? '',
           productUrl: product.productUrl ?? '',
         });
+        setImages(product.images ?? []);
+        setFiles(product.files ?? []);
       } else {
         form.reset({
           productName: '',
@@ -175,6 +177,8 @@ export function SupplierDialog({
           mainCategory: '',
           productUrl: '',
         });
+        setImages([]);
+        setFiles([]);
       }
     }
   }, [open, product, form]);
