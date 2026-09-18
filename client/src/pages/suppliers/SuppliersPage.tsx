@@ -468,7 +468,7 @@ const SuppliersPage = () => {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-5 sm:grid-cols-3 xl:grid-cols-4 gap-2">
               {items.map((product) => {
                 const st = STATUS_STYLE[product.status] || STATUS_STYLE.pending;
                 const showApprove = product.status === 'pending' || product.status === 'rejected';
@@ -481,7 +481,7 @@ const SuppliersPage = () => {
                   >
                     {/* 商品图区（横版，缩略图和价格叠在图上） */}
                     <div
-                      className="relative aspect-[16/10] flex items-center justify-center overflow-hidden"
+                      className="relative aspect-square flex items-center justify-center overflow-hidden"
                       style={{
                         background: 'linear-gradient(135deg, #FEF3E2 0%, #FCE4C8 100%)',
                       }}
@@ -547,7 +547,7 @@ const SuppliersPage = () => {
                       </span>
                     </div>
 
-                    <div className="px-2 pt-1.5 pb-1 flex flex-col gap-0.5">
+                    <div className="px-1.5 pt-1 pb-1 flex flex-col gap-0.5 flex-1">
                       <div className="text-[13px] font-medium text-[#1D2733] leading-snug line-clamp-1">
                         {product.productName}
                       </div>
@@ -601,7 +601,7 @@ const SuppliersPage = () => {
                       )}
                     </div>
 
-                    <div className="px-2 pb-2 grid grid-cols-3 gap-1">
+                    <div className="px-1.5 pb-1.5 mt-auto grid grid-cols-3 gap-0.5">
                       {showApprove && (
                         <button
                           type="button"
@@ -642,7 +642,7 @@ const SuppliersPage = () => {
                     </div>
 
                     {product.status === 'rejected' && product.rejectReason && (
-                      <div className="px-2 pb-2">
+                      <div className="px-1.5 pb-1.5">
                         <div className="px-1.5 py-1 rounded bg-rose-50 text-[10.5px] text-rose-700 leading-snug">
                           <span className="font-semibold">驳回原因：</span>
                           {product.rejectReason}
