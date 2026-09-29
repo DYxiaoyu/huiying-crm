@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { FolderOpen, Trash2, Search, Download, RotateCcw, X, FileText, Archive, Paperclip } from 'lucide-react';
+import { axiosForBackend } from '@lark-apaas/client-toolkit/utils/getAxiosForBackend';
 
 interface FileItem {
   name: string;
@@ -31,11 +32,11 @@ export default function FilesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch('/api/files/list?trash=' + (trash ? 1 : 0));
-      const data = await r.json();
-      setFiles(data);
+      const { data } = await axiosForBackend.get('/api/files/list?trash=' + (trash ? 1 : 0));
+      setFiles(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
+      setFiles([]);
     } finally {
       setLoading(false);
     }
@@ -45,16 +46,16 @@ export default function FilesPage() {
 
   const del = async (name: string) => {
     if (!confirm(`删除 ${name}？移入回收站保留7天`)) return;
-    await fetch('/api/files/delete', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+    await axiosForBackend.post('/api/files/delete', { name });
     load();
   };
   const restore = async (name: string) => {
-    await fetch('/api/files/restore', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+    await axiosForBackend.post('/api/files/restore', { name });
     load();
   };
   const perm = async (name: string) => {
     if (!confirm(`彻底删除 ${name}？不可恢复！`)) return;
-    await fetch('/api/files/permanent', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+    await axiosForBackend.post('/api/files/permanent', { name });
     load();
   };
 
