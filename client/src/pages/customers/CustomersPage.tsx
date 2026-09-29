@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search,
@@ -12,9 +12,11 @@ import {
   Images,
   Star,
   FileUp,
+  Globe,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@lark-apaas/client-toolkit/logger';
+import { useAuth } from '../../contexts/AuthContext';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -138,6 +140,7 @@ function formatDateTime(value: string | null | undefined): string {
 const CustomersPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { employee } = useAuth();
   const urlStage = (searchParams.get('stage') as CustomerStage | null) ?? '';
 
   const [keyword, setKeyword] = useState('');
@@ -371,7 +374,7 @@ const CustomersPage = () => {
         />
         <div className="relative flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-semibold tracking-wide">我的客户</h1>
+            <h1 className="text-xl font-semibold tracking-wide">{employee?.role === 'admin' ? '全部客户' : '我的客户'}</h1>
             <p className="mt-1 text-[13px] text-white/70">
               共 {total} 位客户 · 管理跟进与阶段流转
             </p>
@@ -414,6 +417,15 @@ const CustomersPage = () => {
                 if (file) void handleImportCsvFile(file);
               }}
             />
+            <a
+              href="/enquiry"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-[14px] py-2 rounded-lg bg-white/15 border border-white/25 text-white text-sm font-medium backdrop-blur hover:bg-white/25 transition-all"
+            >
+              <Globe className="size-4" />
+              <span>网页收集</span>
+            </a>
             <button
               type="button"
               onClick={handleAdd}

@@ -32,7 +32,7 @@ export class CustomersController {
 
   @Get()
   async list(
-    @CurrentEmployee() employee: { id: string },
+    @CurrentEmployee() employee: { id: string; role?: string },
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('keyword') keyword?: string,
@@ -60,25 +60,26 @@ export class CustomersController {
         favoriteOnly: favoriteOnly === 'true',
       },
       employee.id,
+      employee.role === 'admin',
     );
   }
 
   @Get('check-duplicate')
   async checkDuplicate(
-    @CurrentEmployee() employee: { id: string },
+    @CurrentEmployee() employee: { id: string; role?: string },
     @Query('name') name?: string,
     @Query('phone') phone?: string,
     @Query('excludeId') excludeId?: string,
   ): Promise<DuplicateCheckResult> {
-    return this.customersService.checkDuplicate(name, phone, excludeId, employee.id);
+    return this.customersService.checkDuplicate(name, phone, excludeId, employee.id, employee.role === 'admin');
   }
 
   @Get('export/csv')
   async exportCsv(
-    @CurrentEmployee() employee: { id: string },
+    @CurrentEmployee() employee: { id: string; role?: string },
     @Res() res: Response,
   ): Promise<void> {
-    const csv = await this.customersService.exportCsv(employee.id);
+    const csv = await this.customersService.exportCsv(employee.id, employee.role === 'admin');
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
@@ -89,10 +90,10 @@ export class CustomersController {
 
   @Get('export/backup')
   async exportBackup(
-    @CurrentEmployee() employee: { id: string },
+    @CurrentEmployee() employee: { id: string; role?: string },
     @Res() res: Response,
   ): Promise<void> {
-    const data = await this.customersService.exportBackup(employee.id);
+    const data = await this.customersService.exportBackup(employee.id, employee.role === 'admin');
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
@@ -103,7 +104,7 @@ export class CustomersController {
 
   @Post('import')
   async importCustomers(
-    @CurrentEmployee() employee: { id: string },
+    @CurrentEmployee() employee: { id: string; role?: string },
     @Body() body: { items: ImportCustomerItem[] },
   ): Promise<ImportResult> {
     return this.customersService.importCustomers(body?.items ?? [], employee.id);
@@ -111,15 +112,15 @@ export class CustomersController {
 
   @Get(':id')
   async detail(
-    @CurrentEmployee() employee: { id: string },
+    @CurrentEmployee() employee: { id: string; role?: string },
     @Param('id') id: string,
   ): Promise<Customer> {
-    return this.customersService.detail(id, employee.id);
+    return this.customersService.detail(id, employee.id, employee.role === 'admin');
   }
 
   @Post()
   async create(
-    @CurrentEmployee() employee: { id: string },
+    @CurrentEmployee() employee: { id: string; role?: string },
     @Body() dto: CreateCustomerDto,
   ): Promise<Customer> {
     return this.customersService.create(dto, employee.id);
@@ -127,18 +128,18 @@ export class CustomersController {
 
   @Patch(':id')
   async update(
-    @CurrentEmployee() employee: { id: string },
+    @CurrentEmployee() employee: { id: string; role?: string },
     @Param('id') id: string,
     @Body() dto: UpdateCustomerDto,
   ): Promise<Customer> {
-    return this.customersService.update(id, dto, employee.id);
+    return this.customersService.update(id, dto, employee.id, employee.role === 'admin');
   }
 
   @Delete(':id')
   async remove(
-    @CurrentEmployee() employee: { id: string },
+    @CurrentEmployee() employee: { id: string; role?: string },
     @Param('id') id: string,
   ): Promise<void> {
-    return this.customersService.remove(id, employee.id);
+    return this.customersService.remove(id, employee.id, employee.role === 'admin');
   }
 }

@@ -9,7 +9,7 @@ import {
 import { DRIZZLE_DATABASE } from '@server/database/database.module';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { customers, followUps } from '@server/database/schema';
-import { eq, and, count, desc, asc, ilike, or, max, ne, inArray } from 'drizzle-orm';
+import { eq, and, count, desc, asc, ilike, or, max, ne, inArray, isNull } from 'drizzle-orm';
 import type {
   Customer,
   CustomerListResponse,
@@ -39,13 +39,13 @@ export class CustomersService {
 
   constructor(@Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase) {}
 
-  async list(params: ListParams, employeeId: string): Promise<CustomerListResponse> {
+  async list(params: ListParams, employeeId: string, isAdmin: boolean): Promise<CustomerListResponse> {
     const { page, pageSize: rawPageSize, keyword, stage, sortBy, sortOrder, favoriteOnly } = params;
     const safePage = Math.max(1, page);
     const safePageSize = Math.min(50, Math.max(1, rawPageSize));
     const offset = (safePage - 1) * safePageSize;
 
-    const conditions = [eq(customers.employeeId, employeeId)];
+    const conditions = [...this.customerScope(isAdmin, employeeId)];
     if (keyword && keyword.trim()) {
       const pattern = `%${keyword.trim()}%`;
       conditions.push(or(
@@ -92,7 +92,7 @@ export class CustomersService {
         })
         .from(followUps)
         .where(and(
-          eq(followUps.employeeId, employeeId),
+          ...this.followUpScope(isAdmin, employeeId),
           inArray(followUps.customerId, customerIds),
         ))
         .groupBy(followUps.customerId);
@@ -120,11 +120,11 @@ export class CustomersService {
     };
   }
 
-  async detail(id: string, employeeId: string): Promise<Customer> {
+  async detail(id: string, employeeId: string, isAdmin: boolean): Promise<Customer> {
     const rows = await this.db
       .select()
       .from(customers)
-      .where(and(eq(customers.id, id), eq(customers.employeeId, employeeId)))
+      .where(and(...this.customerScope(isAdmin, employeeId), eq(customers.id, id)))
       .limit(1);
     if (rows.length === 0) {
       throw new NotFoundException('客户不存在');
@@ -134,8 +134,8 @@ export class CustomersService {
       .select({ lastFollowAt: max(followUps.followAt) })
       .from(followUps)
       .where(and(
+        ...this.followUpScope(isAdmin, employeeId),
         eq(followUps.customerId, id),
-        eq(followUps.employeeId, employeeId),
       ));
     const lastFollow = lastFollowRows[0]?.lastFollowAt ?? null;
     const now = Date.now();
@@ -165,11 +165,11 @@ export class CustomersService {
     return this.toCustomer(inserted[0], null, false);
   }
 
-  async update(id: string, dto: UpdateCustomerDto, employeeId: string): Promise<Customer> {
+  async update(id: string, dto: UpdateCustomerDto, employeeId: string, isAdmin: boolean): Promise<Customer> {
     const existing = await this.db
       .select()
       .from(customers)
-      .where(and(eq(customers.id, id), eq(customers.employeeId, employeeId)))
+      .where(and(...this.customerScope(isAdmin, employeeId), eq(customers.id, id)))
       .limit(1);
     if (existing.length === 0) {
       throw new NotFoundException('客户不存在');
@@ -193,7 +193,7 @@ export class CustomersService {
     const updated = await this.db
       .update(customers)
       .set(patch)
-      .where(and(eq(customers.id, id), eq(customers.employeeId, employeeId)))
+      .where(and(...this.customerScope(isAdmin, employeeId), eq(customers.id, id)))
       .returning();
     this.logger.log(`更新客户成功: ${id}`);
 
@@ -201,8 +201,8 @@ export class CustomersService {
       .select({ lastFollowAt: max(followUps.followAt) })
       .from(followUps)
       .where(and(
+        ...this.followUpScope(isAdmin, employeeId),
         eq(followUps.customerId, id),
-        eq(followUps.employeeId, employeeId),
       ));
     const lastFollow = lastFollowRows[0]?.lastFollowAt ?? null;
     const now = Date.now();
@@ -212,11 +212,11 @@ export class CustomersService {
     return this.toCustomer(updated[0], lastFollow, isOverdue);
   }
 
-  async remove(id: string, employeeId: string): Promise<void> {
+  async remove(id: string, employeeId: string, isAdmin: boolean): Promise<void> {
     const existing = await this.db
       .select()
       .from(customers)
-      .where(and(eq(customers.id, id), eq(customers.employeeId, employeeId)))
+      .where(and(...this.customerScope(isAdmin, employeeId), eq(customers.id, id)))
       .limit(1);
     if (existing.length === 0) {
       throw new NotFoundException('客户不存在');
@@ -230,8 +230,9 @@ export class CustomersService {
     phone: string | undefined,
     excludeId: string | undefined,
     employeeId: string,
+    isAdmin: boolean,
   ): Promise<DuplicateCheckResult> {
-    const conditions = [eq(customers.employeeId, employeeId)];
+    const conditions = [...this.customerScope(isAdmin, employeeId)];
     const nameConditions = [...conditions];
     const phoneConditions = [...conditions];
 
@@ -320,11 +321,11 @@ export class CustomersService {
     return { imported, skipped: items.length - imported, errors };
   }
 
-  async exportCsv(employeeId: string): Promise<string> {
+  async exportCsv(employeeId: string, isAdmin: boolean): Promise<string> {
     const allCustomers = await this.db
       .select()
       .from(customers)
-      .where(eq(customers.employeeId, employeeId))
+      .where(and(...this.customerScope(isAdmin, employeeId)))
       .orderBy(desc(customers.updatedAt));
 
     const customerIds = allCustomers.map((row) => row.id);
@@ -342,7 +343,7 @@ export class CustomersService {
           content: followUps.content,
         })
         .from(followUps)
-        .where(eq(followUps.employeeId, employeeId));
+        .where(and(...this.followUpScope(isAdmin, employeeId)));
 
       for (const fu of allFollowUps) {
         const existing = lastFollowMap.get(fu.customerId);
@@ -395,7 +396,7 @@ export class CustomersService {
     return '\uFEFF' + lines.join('\r\n');
   }
 
-  async exportBackup(employeeId: string): Promise<{
+  async exportBackup(employeeId: string, isAdmin: boolean): Promise<{
     customers: Customer[];
     followUps: Array<{
       id: string;
@@ -411,13 +412,13 @@ export class CustomersService {
     const allCustomers = await this.db
       .select()
       .from(customers)
-      .where(eq(customers.employeeId, employeeId))
+      .where(and(...this.customerScope(isAdmin, employeeId)))
       .orderBy(desc(customers.createdAt));
 
     const allFollowUps = await this.db
       .select()
       .from(followUps)
-      .where(eq(followUps.employeeId, employeeId))
+      .where(and(...this.followUpScope(isAdmin, employeeId)))
       .orderBy(desc(followUps.followAt));
 
     const customerIds = allCustomers.map((row) => row.id);
@@ -452,6 +453,22 @@ export class CustomersService {
       followUps: exportedFollowUps,
       exportedAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * 客户可见范围：管理员=全部；员工=自己添加的 + 网页客户（employeeId 为空，公海共享）
+   */
+  private customerScope(isAdmin: boolean, employeeId: string) {
+    if (isAdmin) return [];
+    return [or(eq(customers.employeeId, employeeId), isNull(customers.employeeId))];
+  }
+
+  /**
+   * 跟进记录可见范围：管理员=全部；员工=自己的 + 网页客户跟进
+   */
+  private followUpScope(isAdmin: boolean, employeeId: string) {
+    if (isAdmin) return [];
+    return [or(eq(followUps.employeeId, employeeId), isNull(followUps.employeeId))];
   }
 
   private toCustomer(

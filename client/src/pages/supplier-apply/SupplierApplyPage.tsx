@@ -46,7 +46,7 @@ const DOC_MIME = [
   'application/x-7z-compressed',
 ];
 const MAX_IMAGES = 500;
-const MAX_FILE_MB = 50;
+const MAX_FILE_MB = 200;
 const MAX_FILES = 20;
 const IMG_MAX_EDGE = 800;
 const IMG_QUALITY = 0.72;
@@ -625,8 +625,8 @@ const SupplierApplyPage = () => {
                             <input type="text" value={p.unit} onChange={(e) => updateProduct(idx, { unit: e.target.value })} placeholder="把 / 台 / 片" className={inputCls} />
                           </div>
                           <div>
-                            <label className={labelCls}>规格型号</label>
-                            <input type="text" value={p.spec} onChange={(e) => updateProduct(idx, { spec: e.target.value })} placeholder="如：DCZC 22" className={inputCls} />
+                            <label className={labelCls}>网盘链接</label>
+                            <input type="text" value={p.spec} onChange={(e) => updateProduct(idx, { spec: e.target.value })} placeholder="如：百度网盘 / 阿里云盘 / 夸克网盘 / 腾讯微云 等等" className={inputCls} />
                           </div>
                           <div>
                             <label className={labelCls}>商品链接</label>

@@ -21,17 +21,17 @@ export class FollowUpsController {
 
   @Get()
   async listByCustomer(
-    @CurrentEmployee() employee: { id: string },
+    @CurrentEmployee() employee: { id: string; role?: string },
     @Query('customerId') customerId: string,
   ): Promise<FollowUp[]> {
-    return this.followUpsService.listByCustomer(customerId, employee.id);
+    return this.followUpsService.listByCustomer(customerId, employee.id, employee.role === 'admin');
   }
 
   @Post()
   async create(
-    @CurrentEmployee() employee: { id: string },
+    @CurrentEmployee() employee: { id: string; role?: string },
     @Body() dto: CreateFollowUpDto,
   ): Promise<FollowUp> {
-    return this.followUpsService.create(dto, employee.id);
+    return this.followUpsService.create(dto, employee.id, employee.role === 'admin');
   }
 }
