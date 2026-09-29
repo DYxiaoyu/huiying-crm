@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 import { join } from 'path';
+import { existsSync } from 'fs';
 import { __express as hbsExpressEngine } from 'hbs';
 import { json, urlencoded } from 'express';
 import cookieParser from 'cookie-parser';
@@ -30,6 +31,15 @@ async function bootstrap() {
   app.useStaticAssets(join(process.cwd(), 'dist/client'), { index: false });
   app.setViewEngine('html');
   app.engine('html', hbsExpressEngine);
+
+  // 上传文件静态服务（图片/附件），兼容 /uploads/ 与 /api/uploads/ 两种前缀
+  const uploadsDir = process.env.UPLOAD_DIR || '/app/uploads';
+  if (existsSync(uploadsDir)) {
+    app.useStaticAssets(uploadsDir, { prefix: '/uploads/' });
+    app.useStaticAssets(uploadsDir, { prefix: '/api/uploads/' });
+  } else {
+    logger.warn(`Uploads dir ${uploadsDir} not found, /uploads 静态服务未启用`);
+  }
 
   await app.listen(port, host);
   logger.log(`Server running on ${host}:${port}`);
