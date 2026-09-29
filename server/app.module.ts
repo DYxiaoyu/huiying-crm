@@ -12,6 +12,8 @@ import { SupplierKeysModule } from './modules/supplier-keys/supplier-keys.module
 import { AdminModule } from './modules/admin/admin.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { FollowUpsModule } from './modules/follow-ups/follow-ups.module';
+import { LeadModule } from './modules/lead/lead.module';
+import { FilesModule } from './modules/files/files.module';
 
 @Module({
   imports: [
@@ -27,6 +29,8 @@ import { FollowUpsModule } from './modules/follow-ups/follow-ups.module';
     AdminModule,
     DashboardModule,
     FollowUpsModule,
+    LeadModule,
+    FilesModule,
     // ====== @route-section: business-modules END ======
 
     // ⚠️ @route-order: last

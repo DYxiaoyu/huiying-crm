@@ -9,8 +9,10 @@ import CustomerDetailPage from './pages/customer-detail/CustomerDetailPage';
 import SuppliersPage from './pages/suppliers/SuppliersPage';
 import SupplierKeysPage from './pages/supplier-keys/SupplierKeysPage';
 import SupplierApplyPage from './pages/supplier-apply/SupplierApplyPage';
+import LeadFormPage from './pages/lead/LeadFormPage';
 import AdminPage from './pages/admin/AdminPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
+import FilesPage from './pages/files/FilesPage';
 import LoginPage from './pages/login/LoginPage';
 
 const ProtectedRoute = ({ children }: { children: React.ReactElement }) => {
@@ -39,6 +41,8 @@ const RoutesComponent = () => {
       <Routes>
         {/* 公开页：供应商提交（无需登录） */}
         <Route path="/join" element={<SupplierApplyPage />} />
+        <Route path="/enquiry" element={<LeadFormPage />} />
+        <Route path="/lead" element={<Navigate to="/enquiry" replace />} />
         {/* 兼容旧链接 */}
         <Route path="/supplier-register" element={<Navigate to="/join" replace />} />
 
@@ -55,6 +59,7 @@ const RoutesComponent = () => {
           <Route path="customers/:id" element={<CustomerDetailPage />} />
           <Route path="suppliers" element={<SuppliersPage />} />
           <Route path="supplier-keys" element={<SupplierKeysPage />} />
+          <Route path="files" element={<FilesPage />} />
           <Route
             path="admin"
             element={

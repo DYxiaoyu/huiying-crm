@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Store, LogOut, KeyRound, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Users, Store, LogOut, KeyRound, ShieldCheck, FolderOpen } from 'lucide-react';
 
 import { useAuth } from '@client/src/contexts/AuthContext';
 
@@ -15,6 +15,7 @@ const navItems: NavItemConfig[] = [
   { path: '/customers', label: '客户列表', icon: Users },
   { path: '/suppliers', label: '供应商列表', icon: Store },
   { path: '/supplier-keys', label: '供应商密钥', icon: KeyRound },
+  { path: '/files', label: '文件管理', icon: FolderOpen },
 ];
 
 /** 老板专属导航项（仅管理员可见） */
@@ -30,6 +31,7 @@ const getPageTitle = (pathname: string): string => {
   if (pathname.startsWith('/customers/')) return '客户详情';
   if (pathname === '/suppliers') return '供应商列表';
   if (pathname === '/supplier-keys') return '供应商密钥';
+  if (pathname === '/files') return '文件管理';
   if (pathname === '/admin') return '老板后台';
   return '';
 };
