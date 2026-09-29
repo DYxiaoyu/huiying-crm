@@ -109,8 +109,8 @@ export function SupplierDialog({
   const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = Array.from(e.target.files || []);
     for (const f of list) {
-      if (f.size > 50 * 1024 * 1024) {
-        toast.error(`${f.name} 超过50MB`);
+      if (f.size > 200 * 1024 * 1024) {
+        toast.error(`${f.name} 超过200MB`);
         continue;
       }
       const reader = new FileReader();
@@ -412,9 +412,9 @@ export function SupplierDialog({
               name="spec"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>规格型号</FormLabel>
+                  <FormLabel>网盘链接</FormLabel>
                   <FormControl>
-                    <Input placeholder="如：DCZC 22 / 3/8英寸" {...field} />
+                    <Input placeholder="如：百度网盘 / 阿里云盘 / 夸克网盘 / 腾讯微云 等等" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -469,18 +469,35 @@ export function SupplierDialog({
 
             {/* 文件上传 */}
             <div>
-              <label className="text-sm font-medium text-[#1D2733]">商品资料文件（PDF/Excel/压缩包，单个≤50MB）</label>
+              <label className="text-sm font-medium text-[#1D2733]">商品资料文件（PDF/Excel/压缩包，单个≤200MB）</label>
               <div className="mt-2 space-y-1.5">
-                {files.map((f, idx) => (
+                {files.map((f, idx) => {
+                  const href = f.url || (typeof f.data === 'string' && (f.data.startsWith('/') || f.data.startsWith('data:')) ? f.data : '');
+                  return (
                   <div key={idx} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#FFFBF5] border border-[#FDE8C8]">
                     <FileUp className="size-4 text-[#D97706] shrink-0" />
-                    <span className="flex-1 text-[12.5px] text-[#1D2733] truncate">{f.name}</span>
+                    {href ? (
+                      <a href={href} target="_blank" rel="noopener noreferrer" className="flex-1 text-[12.5px] text-[#1D2733] truncate hover:text-[#D97706] hover:underline">{f.name}</a>
+                    ) : (
+                      <span className="flex-1 text-[12.5px] text-[#1D2733] truncate">{f.name}</span>
+                    )}
+                    {href && (
+                      <a
+                        href={href}
+                        download={f.name}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-[11px] text-[#D97706] hover:underline whitespace-nowrap shrink-0"
+                      >
+                        下载
+                      </a>
+                    )}
                     <span className="text-[11px] text-[#98A2B3]">{(f.size/1024/1024).toFixed(2)}MB</span>
                     <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i !== idx))}>
                       <X className="size-3.5 text-rose-500" />
                     </button>
                   </div>
-                ))}
+                  );
+                })}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}

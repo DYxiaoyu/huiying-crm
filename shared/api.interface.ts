@@ -139,9 +139,10 @@ export type SupplierStatus = 'pending' | 'approved' | 'rejected';
 
 export interface SupplierFile {
   name: string;
-  mime: string;
+  mime?: string;
   size: number;
-  data: string; // base64
+  data?: string; // 兼容：base64（旧）或迁移后的磁盘路径（如 /uploads/xxx）
+  url?: string;  // 磁盘路径（新上传）
 }
 
 export interface SupplierProduct {

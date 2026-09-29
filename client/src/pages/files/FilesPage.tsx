@@ -22,12 +22,18 @@ function fmtSize(b: number): string {
   return (b/1048576).toFixed(1) + 'MB';
 }
 
+const PAGE_SIZE = 30;
+
 export default function FilesPage() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [trash, setTrash] = useState(false);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('');
+  const [page, setPage] = useState(1);
+
+  // 搜索/筛选/回收站切换时回到第1页
+  useEffect(() => { setPage(1); }, [q, filter, trash]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,6 +70,10 @@ export default function FilesPage() {
     if (filter && getType(f.name) !== filter) return false;
     return true;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const curPage = Math.min(page, totalPages);
+  const pageItems = filtered.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -128,8 +138,9 @@ export default function FilesPage() {
           暂无文件
         </div>
       ) : (
+        <>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          {filtered.map(f => {
+          {pageItems.map(f => {
             const t = getType(f.name);
             return (
               <div key={f.name} className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100">
@@ -193,6 +204,29 @@ export default function FilesPage() {
             );
           })}
         </div>
+        {/* 分页 */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-4">
+            <button
+              onClick={() => setPage(Math.max(1, curPage - 1))}
+              disabled={curPage <= 1}
+              className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-white text-gray-700 disabled:opacity-40"
+            >
+              上一页
+            </button>
+            <span className="text-sm text-gray-500">
+              第 {curPage} / {totalPages} 页
+            </span>
+            <button
+              onClick={() => setPage(Math.min(totalPages, curPage + 1))}
+              disabled={curPage >= totalPages}
+              className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-white text-gray-700 disabled:opacity-40"
+            >
+              下一页
+            </button>
+          </div>
+        )}
+        </>
       )}
     </div>
   );

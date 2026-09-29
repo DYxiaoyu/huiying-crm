@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search,
   Plus,
@@ -493,8 +493,7 @@ const SuppliersPage = () => {
                           className="block w-full h-full"
                           title="点击查看全部图片"
                         >
-                          <img
-                            src={allImages[0]}
+                          <img src={allImages[0]} loading="lazy" decoding="async"
                             alt={product.productName}
                             className="w-full h-full object-cover"
                           />
@@ -534,7 +533,7 @@ const SuppliersPage = () => {
                               onClick={() => openLightbox(allImages, idx + 1)}
                               className="shrink-0 size-9 rounded overflow-hidden border border-white/70 shadow-sm"
                             >
-                              <img src={img} alt="" className="w-full h-full object-cover" />
+                              <img src={img} loading="lazy" decoding="async" alt="" className="w-full h-full object-cover" />
                             </button>
                           ))}
                         </div>
@@ -775,7 +774,7 @@ const SuppliersPage = () => {
                 </button>
               </div>
               <iframe
-                src={previewPdf.data}
+                src={previewPdf.url || previewPdf.data || ''}
                 title={previewPdf.name}
                 className="w-full h-[420px] bg-white"
               />
@@ -804,7 +803,7 @@ const SuppliersPage = () => {
               ) : (
                 <a
                   key={idx}
-                  href={f.data}
+                  href={f.url || f.data || '#'}
                   download={f.name}
                   className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg bg-[#FFFBF5] border border-[#FDE8C8] hover:bg-[#FDE8C8] transition-colors"
                 >
