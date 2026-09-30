@@ -66,3 +66,8 @@ pnpm-lock.yaml
 # Agent files
 .agent/
 .npm_cache
+# 部署打包产物，勿提交
+deploy-client.zip
+deploy-server.zip
+dist-client.zip
+__dump_files.js
