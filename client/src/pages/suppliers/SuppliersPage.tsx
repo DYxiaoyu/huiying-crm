@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search,
   Plus,
@@ -563,7 +563,7 @@ const SuppliersPage = () => {
                           </span>
                         </div>
                       )}
-                      {(product.productUrl || (product.files && product.files.length > 0)) && (
+                      {(product.productUrl || product.spec || (product.files && product.files.length > 0)) && (
                         <div className="flex items-center gap-2 pt-0.5">
                           {product.productUrl && (
                             <a
@@ -577,10 +577,21 @@ const SuppliersPage = () => {
                               className="inline-flex items-center gap-0.5 text-[10.5px] font-medium text-[#1D4ED8] hover:underline"
                             >
                               <ExternalLink className="size-3" />
-                              链接
+                              商品链接
                             </a>
                           )}
-                          {product.files && product.files.length > 0 && (
+                          {product.spec && /https?:\/\//i.test(product.spec) && (
+                            <a
+                              href={(product.spec.match(/https?:\/\/[^\s]+/) || [''])[0]}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={product.spec}
+                              className="inline-flex items-center gap-0.5 text-[10.5px] font-medium text-[#0E9F6E] hover:underline"
+                            >
+                              <ExternalLink className="size-3" />
+                              网盘链接
+                            </a>
+                          )}                          {product.files && product.files.length > 0 && (
                             <button
                               type="button"
                               onClick={() => {
