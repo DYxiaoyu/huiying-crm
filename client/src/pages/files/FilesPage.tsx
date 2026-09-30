@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { FolderOpen, Trash2, Search, Download, RotateCcw, X, FileText, Archive, Paperclip } from 'lucide-react';
+import { FolderOpen, Trash2, Search, Download, RotateCcw, X } from 'lucide-react';
 import { axiosForBackend } from '@lark-apaas/client-toolkit/utils/getAxiosForBackend';
 
 interface FileItem {
@@ -14,6 +14,31 @@ function getType(name: string): 'image' | 'doc' | 'archive' | 'other' {
   if (['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','csv'].includes(ext)) return 'doc';
   if (['zip','rar','7z','tar','gz'].includes(ext)) return 'archive';
   return 'other';
+}
+
+/** 按文件类型返回彩色图标（白底 + 类型色折角 + 类型徽标，识别不出用通用图标） */
+function FileTypeIcon({ name }: { name: string }) {
+  const ext = name.split('.').pop()?.toLowerCase() || '';
+  let color = '#9AA0A6';
+  let label = 'FILE';
+  if (ext === 'pdf') { color = '#E5484D'; label = 'PDF'; }
+  else if (['xls', 'xlsx'].includes(ext)) { color = '#1E8E5A'; label = 'XLS'; }
+  else if (ext === 'csv') { color = '#30A46C'; label = 'CSV'; }
+  else if (['doc', 'docx'].includes(ext)) { color = '#2B5FBF'; label = 'DOC'; }
+  else if (['ppt', 'pptx'].includes(ext)) { color = '#E8710A'; label = 'PPT'; }
+  else if (ext === 'zip') { color = '#D97706'; label = 'ZIP'; }
+  else if (ext === 'rar') { color = '#7C3AED'; label = 'RAR'; }
+  else if (['7z', 'tar', 'gz'].includes(ext)) { color = '#B45309'; label = 'ZIP'; }
+  else if (['txt', 'md', 'log'].includes(ext)) { color = '#5B8DEF'; label = 'TXT'; }
+  return (
+    <svg viewBox="0 0 48 56" className="w-10 h-10 shrink-0" fill="none">
+      <path d="M10 1C5.6 1 2 4.6 2 9v38c0 4.4 3.6 8 8 8h28c4.4 0 8-3.6 8-8V15L31 1H10z" fill="#FFFFFF" stroke={color} strokeWidth="2.5" strokeLinejoin="round" />
+      <path d="M31 1v10c0 2.2 1.8 4 4 4h11" fill={color} stroke={color} strokeLinejoin="round" />
+      <text x="24" y="30" textAnchor="middle" fontSize="13" fontWeight="700" fill={color} fontFamily="Arial, sans-serif">{label}</text>
+      <rect x="10" y="38" width="28" height="2.5" rx="1.25" fill="#E5E7EB" />
+      <rect x="10" y="44" width="19" height="2.5" rx="1.25" fill="#E5E7EB" />
+    </svg>
+  );
 }
 
 function fmtSize(b: number): string {
@@ -153,12 +178,8 @@ export default function FilesPage() {
                       onClick={() => window.open('/uploads/' + encodeURIComponent(f.name))}
                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
-                  ) : t === 'doc' ? (
-                    <FileText className="w-10 h-10 text-gray-300" />
-                  ) : t === 'archive' ? (
-                    <Archive className="w-10 h-10 text-gray-300" />
                   ) : (
-                    <Paperclip className="w-10 h-10 text-gray-300" />
+                    <FileTypeIcon name={f.name} />
                   )}
                 </div>
                 <div className="p-2.5">

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { Image as ImageIcon, FileUp, X } from 'lucide-react';
+import { Image as ImageIcon, FileUp, X, Loader2 } from 'lucide-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { logger } from '@lark-apaas/client-toolkit/logger';
+import { axiosForBackend } from '@lark-apaas/client-toolkit/utils/getAxiosForBackend';
 
 import {
   Dialog,
@@ -66,6 +67,7 @@ export function SupplierDialog({
   const isEdit = !!product;
   const [images, setImages] = useState<string[]>([]);
   const [files, setFiles] = useState<SupplierFile[]>([]);
+  const [uploading, setUploading] = useState<{ name: string; progress: number } | null>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -106,18 +108,37 @@ export function SupplierDialog({
     if (imgInputRef.current) imgInputRef.current.value = '';
   };
 
-  const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+  /** 参照大厂做法：选择文件后立即独立上传到服务器磁盘，保存时只提交 URL（避免大文件 JSON 超时/丢失） */
+  const handleFilePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = Array.from(e.target.files || []);
     for (const f of list) {
       if (f.size > 200 * 1024 * 1024) {
         toast.error(`${f.name} 超过200MB`);
         continue;
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        setFiles((prev) => [...prev, { name: f.name, size: f.size, data: reader.result as string }]);
-      };
-      reader.readAsDataURL(f);
+      setUploading({ name: f.name, progress: 0 });
+      const fd = new FormData();
+      fd.append('file', f);
+      try {
+        const { data } = await axiosForBackend.post<{ url: string; name: string; size: number }>(
+          '/api/files/upload',
+          fd,
+          {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (p) => {
+              if (p.total) setUploading({ name: f.name, progress: Math.round((p.loaded / p.total) * 100) });
+            },
+            timeout: 0,
+          }
+        );
+        setFiles((prev) => [...prev, { name: f.name, size: f.size, url: data.url }]);
+        toast.success(`${f.name} 上传完成`);
+      } catch (err) {
+        logger.error(`上传文件失败: ${f.name}`, err as Error);
+        toast.error(`${f.name} 上传失败，请重试`);
+      } finally {
+        setUploading(null);
+      }
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -471,6 +492,18 @@ export function SupplierDialog({
             <div>
               <label className="text-sm font-medium text-[#1D2733]">商品资料文件（PDF/Excel/压缩包，单个≤200MB）</label>
               <div className="mt-2 space-y-1.5">
+                {uploading && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#FFFBF5] border border-[#FDE8C8]">
+                    <Loader2 className="size-4 text-[#D97706] shrink-0 animate-spin" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12.5px] text-[#1D2733] truncate">正在上传：{uploading.name}</div>
+                      <div className="mt-1 h-1.5 rounded-full bg-[#FDE8C8] overflow-hidden">
+                        <div className="h-full bg-[#D97706] transition-all" style={{ width: uploading.progress + '%' }} />
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-[#98A2B3] shrink-0">{uploading.progress}%</span>
+                  </div>
+                )}
                 {files.map((f, idx) => {
                   const href = f.url || (typeof f.data === 'string' && (f.data.startsWith('/') || f.data.startsWith('data:')) ? f.data : '');
                   return (
