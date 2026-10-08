@@ -25,7 +25,7 @@ export interface RejectedRecord {
   updatedAt: string;
 }
 
-const PUBLIC_UPLOAD_DIR = process.env.UPLOAD_DIR || '/app/uploads';
+const PUBLIC_UPLOAD_DIR = (process.env.UPLOAD_DIR || '/app/uploads') + '/public';
 
 /** 公开接口：供应商提交（免登录，密钥校验，仅写入） */
 @Controller('api/public/supplier')
@@ -75,7 +75,7 @@ export class SupplierPublicController {
       throw new BadRequestException('未收到文件');
     }
     return {
-      url: '/uploads/' + file.filename,
+      url: '/uploads/public/' + file.filename,
       name: file.originalname || file.filename || 'file',
       size: file.size,
       mime: file.mimetype || 'application/octet-stream',

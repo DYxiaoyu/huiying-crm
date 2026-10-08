@@ -80,6 +80,7 @@ export class FilesController {
       .map(f => {
         try {
           const st = fs.statSync(path.join(dir, f));
+          if (!st.isFile()) return null; // 只列文件，跳过子目录（如 public/）
           return { name: f, size: st.size, mtime: Math.floor(st.mtimeMs) };
         } catch (e) { return null; }
       })

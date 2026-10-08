@@ -12,8 +12,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/app/uploads';
+const PUBLIC_DIR = path.join(UPLOAD_DIR, 'public'); // 供应商表单页(join)公开上传落盘目录
 const TRASH_DIR = path.join(UPLOAD_DIR, '.trash');
-const ORPHAN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 上传后 7 天未被引用视为孤儿
+const ORPHAN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 表单页上传后 7 天未提交视为孤儿
 const CLEAN_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
@@ -70,16 +71,17 @@ export class FilesService implements OnModuleInit {
     return referenced;
   }
 
-  /** 孤儿文件清理：上传超 7 天且未被任何商品引用的文件移入回收站（可在回收站恢复） */
+  /** 孤儿文件清理：仅清理供应商表单页(join)公开上传目录中，上传超 7 天且未被任何商品引用的文件（移入回收站）。
+   *  后台员工上传的文件（主目录）不受影响，由文件管理页手动管理。 */
   async cleanupOrphanFiles() {
     try {
-      if (!fs.existsSync(UPLOAD_DIR)) return { cleaned: 0 };
+      if (!fs.existsSync(PUBLIC_DIR)) return { cleaned: 0 };
       const referenced = await this.collectReferencedNames();
       let cleaned = 0;
-      const entries = fs.readdirSync(UPLOAD_DIR).filter((f) => !f.startsWith('.'));
+      const entries = fs.readdirSync(PUBLIC_DIR).filter((f) => !f.startsWith('.'));
       for (const name of entries) {
         if (referenced.has(name)) continue;
-        const fp = path.join(UPLOAD_DIR, name);
+        const fp = path.join(PUBLIC_DIR, name);
         try {
           const st = fs.statSync(fp);
           if (!st.isFile()) continue;
@@ -92,7 +94,7 @@ export class FilesService implements OnModuleInit {
         }
       }
       if (cleaned > 0) {
-        this.logger.log(`孤儿文件自动清理：${cleaned} 个文件已移入回收站`);
+        this.logger.log(`表单页孤儿文件自动清理：${cleaned} 个未提交文件已移入回收站`);
       }
       return { cleaned };
     } catch (e) {
