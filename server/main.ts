@@ -17,9 +17,8 @@ async function bootstrap() {
   const host = process.env.SERVER_HOST || 'localhost';
   const port = Number(process.env.SERVER_PORT || '3000');
 
-  const bodyLimit = process.env.BODY_SIZE_LIMIT || '10mb';
-
-  // body 解析（替代原平台 configureApp）
+  // body 解析（替代原平台 configureApp）；文件已改为先传后存，此处上限主要用于容纳多图 base64
+  const bodyLimit = process.env.BODY_SIZE_LIMIT || '100mb';
   app.use(json({ limit: bodyLimit }));
   app.use(urlencoded({ limit: bodyLimit, extended: true }));
   app.use(cookieParser());

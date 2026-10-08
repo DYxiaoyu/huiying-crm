@@ -8,6 +8,8 @@ import { DRIZZLE_DATABASE } from '@server/database/database.module';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { supplierProducts, supplierKeys } from '@server/database/schema';
 import { eq, and } from 'drizzle-orm';
+import * as fs from 'fs';
+import * as path from 'path';
 import type {
   PublicApplyDto,
   PublicApplyResponse,
@@ -27,10 +29,13 @@ const DOC_MIME = new Set([
   'application/x-rar-compressed',
   'application/vnd.rar',
   'application/x-7z-compressed',
+  'application/x-tar',
+  'application/gzip',
 ]);
 const MAX_IMAGE_DATA = 4 * 1024 * 1024; // base64 字符串长度 ≈ 3MB 文件
-const MAX_FILE_DATA = 70 * 1024 * 1024; // base64 ≈ 50MB 文件（Render 512MB 内存安全值；搬自有服务器后调大）
+const MAX_FILE_DATA = 70 * 1024 * 1024; // base64 ≈ 50MB 文件（仅兼容旧版提交）
 const MAX_FILES = 20;
+const UPLOAD_DIR = process.env.UPLOAD_DIR || '/app/uploads';
 
 @Injectable()
 export class SupplierPublicService {
@@ -92,7 +97,7 @@ export class SupplierPublicService {
     const imageUrl = imageList[0] || null;
     const imagesJson = imageList.length > 0 ? JSON.stringify(imageList) : null;
 
-    // 文件校验
+    // 文件校验：优先磁盘路径（新上传），兼容旧 base64
     let filesJson: string | null = null;
     if (Array.isArray(dto.files) && dto.files.length > 0) {
       if (dto.files.length > MAX_FILES) {
@@ -101,20 +106,34 @@ export class SupplierPublicService {
       const files: SupplierFile[] = [];
       for (const f of dto.files) {
         const name = f.name?.trim();
-        const mime = f.mime?.trim();
-        const data = f.data?.trim();
-        if (!name || !mime || !data) {
+        if (!name) {
           throw new BadRequestException('文件信息不完整');
-        }
-        if (!DOC_MIME.has(mime)) {
-          throw new BadRequestException(`文件「${name}」格式不支持，仅支持 PDF / Excel / Word / CSV`);
-        }
-        if (data.length > MAX_FILE_DATA) {
-          throw new BadRequestException(`文件「${name}」过大，请压缩到 50MB 以内`);
         }
         // 防止危险文件名
         const safeName = name.replace(/[\\/:*?"<>|]/g, '_').slice(0, 120);
-        files.push({ name: safeName, mime, size: f.size || data.length, data });
+        const mime = f.mime?.trim() || 'application/octet-stream';
+        const url = f.url?.trim();
+        if (url && url.startsWith('/uploads/')) {
+          // 磁盘文件（先传后存）：校验文件确实存在
+          const fp = path.join(UPLOAD_DIR, path.basename(url));
+          if (!fs.existsSync(fp)) {
+            throw new BadRequestException(`文件「${name}」不存在，请重新上传`);
+          }
+          files.push({ name: safeName, mime, size: f.size || 0, url });
+        } else {
+          // 旧 base64 提交（兼容老版本页面）
+          const data = f.data?.trim();
+          if (!data) {
+            throw new BadRequestException('文件信息不完整');
+          }
+          if (!DOC_MIME.has(mime)) {
+            throw new BadRequestException(`文件「${name}」格式不支持，仅支持 PDF / Excel / Word / CSV / 压缩包`);
+          }
+          if (data.length > MAX_FILE_DATA) {
+            throw new BadRequestException(`文件「${name}」过大，请压缩到 50MB 以内`);
+          }
+          files.push({ name: safeName, mime, size: f.size || data.length, data });
+        }
       }
       filesJson = JSON.stringify(files);
     }

@@ -44,12 +44,48 @@ const DOC_MIME = [
   'application/x-rar-compressed',
   'application/vnd.rar',
   'application/x-7z-compressed',
+  'application/x-tar',
+  'application/gzip',
 ];
+// 浏览器对部分压缩包/文件会识别成 application/octet-stream 或空类型，按扩展名兜底
+const DOC_EXTS = ['pdf', 'xls', 'xlsx', 'doc', 'docx', 'csv', 'zip', 'rar', '7z', 'gz', 'tgz', 'tar'];
 const MAX_IMAGES = 500;
 const MAX_FILE_MB = 200;
 const MAX_FILES = 20;
 const IMG_MAX_EDGE = 800;
 const IMG_QUALITY = 0.72;
+
+const isDocFile = (f: File): boolean =>
+  DOC_MIME.includes(f.type) ||
+  DOC_EXTS.includes((f.name.split('.').pop() || '').toLowerCase());
+
+/** 独立上传单个文件到服务器（先传后存，免卡顿），返回磁盘路径 */
+function uploadFileToServer(file: File, key: string): Promise<SupplierFile> {
+  return new Promise((resolve, reject) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('key', key);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/public/supplier/upload-file');
+    xhr.onload = () => {
+      let j: any = null;
+      try {
+        j = JSON.parse(xhr.responseText);
+      } catch {
+        reject(new Error('上传响应解析失败'));
+        return;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve({ name: j.name, size: j.size, mime: j.mime || file.type, url: j.url });
+      } else {
+        reject(new Error(j.message || j.error?.message || `上传失败(${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('网络异常，请重试'));
+    xhr.ontimeout = () => reject(new Error('上传超时，请重试'));
+    xhr.send(fd);
+  });
+}
 
 interface RejectedRecord {
   productName: string;
@@ -132,6 +168,7 @@ const SupplierApplyPage = () => {
   // 多图 + 文件
   const [images, setImages] = useState<{ dataUrl: string; name: string }[]>([]);
   const [files, setFiles] = useState<SupplierFile[]>([]);
+  const [uploadingName, setUploadingName] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -207,9 +244,9 @@ const SupplierApplyPage = () => {
       return;
     }
     const picked = arr.slice(0, remain);
-    const added: SupplierFile[] = [];
+    if (arr.length > remain) toast.warning(`超出 ${MAX_FILES} 个文件，仅添加前 ${remain} 个`);
     for (const f of picked) {
-      if (!DOC_MIME.includes(f.type)) {
+      if (!isDocFile(f)) {
         toast.error(`「${f.name}」格式不支持，仅支持 PDF / Excel / Word / CSV / 压缩包`);
         continue;
       }
@@ -217,16 +254,16 @@ const SupplierApplyPage = () => {
         toast.error(`「${f.name}」不能超过 ${MAX_FILE_MB}MB`);
         continue;
       }
-      const reader = new FileReader();
-      await new Promise<void>((resolve) => {
-        reader.onload = () => {
-          added.push({ name: f.name, mime: f.type, size: f.size, data: String(reader.result) });
-          resolve();
-        };
-        reader.readAsDataURL(f);
-      });
+      setUploadingName(f.name);
+      try {
+        const up = await uploadFileToServer(f, keyValue.trim());
+        setFiles((prev) => [...prev, up]);
+      } catch (e) {
+        toast.error(`「${f.name}」上传失败：${(e as Error).message || '请重试'}`);
+      } finally {
+        setUploadingName(null);
+      }
     }
-    if (added.length) setFiles((prev) => [...prev, ...added]);
   };
 
   const updateProduct = (idx: number, patch: Partial<ProductItem>) => {
@@ -535,7 +572,7 @@ const SupplierApplyPage = () => {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".pdf,.xlsx,.xls,.doc,.docx,.csv,.zip,.rar,.7z"
+                    accept=".pdf,.xlsx,.xls,.doc,.docx,.csv,.zip,.rar,.7z,.gz,.tgz,.tar"
                     multiple
                     className="hidden"
                     onChange={(e) => {
@@ -543,6 +580,12 @@ const SupplierApplyPage = () => {
                       e.target.value = '';
                     }}
                   />
+                  {uploadingName && (
+                    <div className="mt-2 text-[12px] text-[#B45309] flex items-center gap-1.5">
+                      <span className="inline-block size-3 rounded-full border-2 border-[#D97706] border-t-transparent animate-spin" />
+                      正在上传「{uploadingName}」…（大文件请耐心等待）
+                    </div>
+                  )}
                   {files.length > 0 && (
                     <ul className="mt-3 space-y-2">
                       {files.map((f, idx) => (
@@ -551,12 +594,22 @@ const SupplierApplyPage = () => {
                           className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-[#FFFBF5] border border-[#FDE8C8]"
                         >
                           <FileText className="size-5 text-[#D97706] shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-[13.5px] font-medium text-[#1D2733] truncate">{f.name}</div>
-                            <div className="text-[11.5px] text-[#98A2B3]">
-                              {(f.size / 1024 / 1024).toFixed(2)} MB
+                          <a
+                            href={f.url || '#'}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex-1 min-w-0 group"
+                            onClick={(e) => {
+                              if (!f.url) e.preventDefault();
+                            }}
+                          >
+                            <div className="text-[13.5px] font-medium text-[#1D2733] truncate group-hover:text-[#D97706]">
+                              {f.name}
                             </div>
-                          </div>
+                            <div className="text-[11.5px] text-[#98A2B3]">
+                              {(f.size / 1024 / 1024).toFixed(2)} MB{f.url ? ' · 点击查看' : ''}
+                            </div>
+                          </a>
                           <button
                             type="button"
                             onClick={() => setFiles((prev) => prev.filter((_, i) => i !== idx))}
