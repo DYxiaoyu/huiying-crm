@@ -49,6 +49,14 @@ function fmtSize(b: number): string {
 
 const PAGE_SIZE = 30;
 
+interface DiskUsage {
+  files: number;
+  sizeBytes: number;
+  trashFiles: number;
+  trashSizeBytes: number;
+  totalBytes: number | null;
+}
+
 export default function FilesPage() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +64,7 @@ export default function FilesPage() {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('');
   const [page, setPage] = useState(1);
+  const [usage, setUsage] = useState<DiskUsage | null>(null);
 
   // 搜索/筛选/回收站切换时回到第1页
   useEffect(() => { setPage(1); }, [q, filter, trash]);
@@ -74,6 +83,15 @@ export default function FilesPage() {
   }, [trash]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 磁盘用量（含回收站占用）
+  useEffect(() => {
+    let alive = true;
+    axiosForBackend.get('/api/files/usage').then(({ data }) => {
+      if (alive && data) setUsage(data as DiskUsage);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   const del = async (name: string) => {
     if (!confirm(`删除 ${name}？移入回收站保留7天`)) return;
@@ -107,7 +125,26 @@ export default function FilesPage() {
         <h1 className="text-xl font-bold flex items-center gap-2">
           <FolderOpen className="w-6 h-6" /> 文件管理
         </h1>
-        <p className="text-sm opacity-90 mt-1">搜索、预览、清理服务器文件 · 回收站保留7天</p>
+        <p className="text-sm opacity-90 mt-1">搜索、预览、清理服务器文件 · 回收站保留7天 · 孤儿文件(上传7天未使用)自动进回收站</p>
+        {usage && (
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-[13px]">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-1.5 rounded-full bg-white/90" />
+              已用 <b>{fmtSize(usage.sizeBytes)}</b>（{usage.files} 个文件）
+            </span>
+            {usage.totalBytes ? (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full bg-white/90" />
+                云盘容量 <b>{fmtSize(usage.totalBytes)}</b>
+                <span className="opacity-80">（{((usage.sizeBytes + usage.trashSizeBytes) / usage.totalBytes * 100).toFixed(1)}%）</span>
+              </span>
+            ) : null}
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-1.5 rounded-full bg-white/90" />
+              回收站 <b>{fmtSize(usage.trashSizeBytes)}</b>（{usage.trashFiles} 个）
+            </span>
+          </div>
+        )}
       </div>
 
       {/* 工具栏 */}

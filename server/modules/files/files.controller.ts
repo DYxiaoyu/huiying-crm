@@ -13,6 +13,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { randomBytes } from 'crypto';
 import { EmployeeAuthGuard } from '@server/modules/auth/employee-auth.guard';
+import { FilesService } from './files.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -33,6 +34,19 @@ function safeName(name: string) {
 @Controller('api/files')
 @UseGuards(EmployeeAuthGuard)
 export class FilesController {
+  constructor(private readonly filesService: FilesService) {}
+
+  /** 磁盘占用统计（文件数 / 已用 / 回收站 / 卷总容量） */
+  @Get('usage')
+  usage() {
+    return this.filesService.usage();
+  }
+
+  /** 立即触发一次孤儿文件清理（上传超7天且未被引用→回收站） */
+  @Post('cleanup')
+  cleanup() {
+    return this.filesService.cleanupOrphanFiles();
+  }
   /** 通用文件上传（multipart/form-data，字段名 file，单个≤200MB，直接落盘 /app/uploads） */
   @Post('upload')
   @UseInterceptors(FileInterceptor('file', {
