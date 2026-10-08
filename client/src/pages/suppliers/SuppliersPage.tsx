@@ -16,6 +16,7 @@ import {
   XCircle,
   FileText,
   Clock,
+  Globe,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@lark-apaas/client-toolkit/logger';
@@ -65,6 +66,12 @@ const STATUS_OPTIONS: { value: SupplierStatus | ''; label: string }[] = [
   { value: 'rejected', label: '已驳回' },
 ];
 
+const SOURCE_OPTIONS: { value: 'form' | 'admin' | ''; label: string }[] = [
+  { value: '', label: '全部来源' },
+  { value: 'admin', label: '后台添加' },
+  { value: 'form', label: '供应商表单提交' },
+];
+
 const STATUS_STYLE: Record<SupplierStatus, { label: string; cls: string }> = {
   pending: { label: '待审核', cls: 'bg-amber-500/90 text-white' },
   approved: { label: '已通过', cls: 'bg-emerald-500/90 text-white' },
@@ -76,6 +83,7 @@ const SuppliersPage = () => {
   const [category, setCategory] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<SupplierStatus | ''>('');
+  const [sourceFilter, setSourceFilter] = useState<'form' | 'admin' | ''>('');
   const [sortValue, setSortValue] = useState('updatedAt-desc');
   const [page, setPage] = useState(1);
   const pageSize = 12;
@@ -138,6 +146,7 @@ const SuppliersPage = () => {
         keyword: keyword || undefined,
         category: category || undefined,
         status: statusFilter || undefined,
+        source: sourceFilter || undefined,
         sortBy,
         sortOrder,
       });
@@ -149,7 +158,7 @@ const SuppliersPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, category, statusFilter, sortBy, sortOrder]);
+  }, [page, pageSize, keyword, category, statusFilter, sourceFilter, sortBy, sortOrder]);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -428,6 +437,21 @@ const SuppliersPage = () => {
         </div>
 
         <div className="shrink-0">
+          <Select value={sourceFilter} onValueChange={(v) => { setSourceFilter(v as 'form' | 'admin' | ''); setPage(1); }}>
+            <SelectTrigger className="min-w-[150px] h-9 px-3 rounded-lg border border-[#E4E7EC] bg-white text-sm text-[#1D2733]">
+              <SelectValue placeholder="全部来源" />
+            </SelectTrigger>
+            <SelectContent>
+              {SOURCE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="shrink-0">
           <Select value={sortValue} onValueChange={(v) => { setSortValue(v); setPage(1); }}>
             <SelectTrigger className="min-w-[130px] h-9 px-3 rounded-lg border border-[#E4E7EC] bg-white text-sm text-[#1D2733]">
               <SelectValue placeholder="排序方式" />
@@ -544,6 +568,13 @@ const SuppliersPage = () => {
                       >
                         {st.label}
                       </span>
+
+                      {product.submitKey && (
+                        <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[#1D4ED8]/85 text-white text-[10px] font-medium shadow-sm">
+                          <Globe className="size-3" />
+                          表单提交
+                        </span>
+                      )}
                     </div>
 
                     <div className="px-2 pt-1.5 pb-1 flex flex-col gap-0.5">

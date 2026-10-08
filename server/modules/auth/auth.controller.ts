@@ -3,7 +3,7 @@ import { AuthService } from './auth.service';
 import { EmployeeAuthGuard } from './employee-auth.guard';
 import { AdminGuard } from './admin.guard';
 import { CurrentEmployee } from './current-employee.decorator';
-import type { AuthResponse, RegisterDto, LoginDto, Employee } from '@shared/api.interface';
+import type { AuthResponse, RegisterDto, LoginDto, ChangePasswordDto, Employee } from '@shared/api.interface';
 
 @Controller('api/auth')
 export class AuthController {
@@ -26,5 +26,16 @@ export class AuthController {
   @Post('login')
   async login(@Body() dto: LoginDto): Promise<AuthResponse> {
     return this.authService.login(dto);
+  }
+
+  /** 修改自己的密码（需旧密码验证） */
+  @Post('change-password')
+  @UseGuards(EmployeeAuthGuard)
+  async changePassword(
+    @Body() dto: ChangePasswordDto,
+    @CurrentEmployee() employee: Employee,
+  ): Promise<{ success: boolean }> {
+    await this.authService.changePassword(employee.id, dto.oldPassword, dto.newPassword);
+    return { success: true };
   }
 }

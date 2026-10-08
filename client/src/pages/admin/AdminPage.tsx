@@ -11,6 +11,7 @@ import {
   Crown,
   User as UserIcon,
   Clock,
+  Store,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -155,6 +156,13 @@ const AdminPage = () => {
       label: '客户总数',
       value: overview?.customerTotal ?? 0,
       icon: Users,
+      color: '#0E7C6B',
+      bg: '#E4F2EF',
+    },
+    {
+      label: '供应商总数',
+      value: overview?.supplierTotal ?? 0,
+      icon: Store,
       color: '#0E7C6B',
       bg: '#E4F2EF',
     },
@@ -364,7 +372,7 @@ const AdminPage = () => {
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-3" style={{ color: '#5B6773' }}>
+                          <td className="px-4 py-3" style={{ color: '#5B6773' }} title="客户数 / 名下供应商数（不含供应商表单提交）">
                             {item.customerCount} / {item.supplierCount}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap" style={{ color: '#8A94A6' }}>

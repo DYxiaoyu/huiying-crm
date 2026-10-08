@@ -107,6 +107,12 @@ export interface LoginDto {
   password: string;
 }
 
+/** 修改密码（本人操作） */
+export interface ChangePasswordDto {
+  oldPassword: string;
+  newPassword: string;
+}
+
 export interface AuthResponse {
   token: string;
   employee: Employee;
@@ -178,6 +184,8 @@ export interface SupplierListQuery {
   keyword?: string;
   category?: string;
   status?: SupplierStatus | '';
+  /** 来源：form=供应商表单提交；admin=后台添加；空=全部 */
+  source?: 'form' | 'admin' | '';
   sortBy?: 'updatedAt' | 'createdAt' | 'productName' | 'price';
   sortOrder?: 'asc' | 'desc';
 }
@@ -334,6 +342,8 @@ export interface AdminOverview {
   customerTotal: number;
   customerByStage: StageDistribution[];
   supplierTotal: number;
+  /** 供应商表单（入驻页）提交的商品数 */
+  supplierFormTotal: number;
   supplierPending: number;
   employeeTotal: number;
   adminTotal: number;

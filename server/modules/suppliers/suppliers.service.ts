@@ -8,7 +8,7 @@ import {
 import { DRIZZLE_DATABASE } from '@server/database/database.module';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { supplierProducts } from '@server/database/schema';
-import { eq, and, count, desc, asc, ilike, or } from 'drizzle-orm';
+import { eq, and, count, desc, asc, ilike, or, sql } from 'drizzle-orm';
 import type {
   SupplierProduct,
   SupplierListResponse,
@@ -26,6 +26,8 @@ interface ListParams {
   keyword?: string;
   category?: string;
   status?: SupplierStatus;
+  /** 来源筛选：form=供应商表单提交；admin=后台添加；空=全部 */
+  source?: 'form' | 'admin';
   sortBy?: 'updatedAt' | 'createdAt' | 'productName' | 'price';
   sortOrder?: 'asc' | 'desc';
 }
@@ -40,7 +42,7 @@ export class SuppliersService {
    * 供应商商品对所有登录用户可见可搜（团队共享）
    */
   async list(params: ListParams): Promise<SupplierListResponse> {
-    const { page, pageSize: rawPageSize, keyword, category, status, sortBy, sortOrder } = params;
+    const { page, pageSize: rawPageSize, keyword, category, status, source, sortBy, sortOrder } = params;
     const safePage = Math.max(1, page);
     const safePageSize = Math.min(50, Math.max(1, rawPageSize));
     const offset = (safePage - 1) * safePageSize;
@@ -63,6 +65,17 @@ export class SuppliersService {
     }
     if (status) {
       conditions.push(eq(supplierProducts.status, status));
+    }
+    if (source === 'form') {
+      // 供应商入驻页表单提交：带 submit_key
+      conditions.push(
+        sql`${supplierProducts.submitKey} IS NOT NULL`
+      );
+    } else if (source === 'admin') {
+      // 后台添加：无 submit_key
+      conditions.push(
+        sql`${supplierProducts.submitKey} IS NULL`
+      );
     }
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 

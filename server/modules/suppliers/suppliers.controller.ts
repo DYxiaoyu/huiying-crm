@@ -35,6 +35,7 @@ export class SuppliersController {
     @Query('keyword') keyword?: string,
     @Query('category') category?: string,
     @Query('status') status?: string,
+    @Query('source') source?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: string,
   ): Promise<SupplierListResponse> {
@@ -48,6 +49,8 @@ export class SuppliersController {
       status === 'pending' || status === 'approved' || status === 'rejected'
         ? (status as SupplierStatus)
         : undefined;
+    const safeSource: 'form' | 'admin' | undefined =
+      source === 'form' || source === 'admin' ? source : undefined;
 
     return this.suppliersService.list({
       page: pageNum,
@@ -55,6 +58,7 @@ export class SuppliersController {
       keyword,
       category,
       status: safeStatus,
+      source: safeSource,
       sortBy: safeSortBy,
       sortOrder: safeSortOrder,
     });

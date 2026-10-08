@@ -46,9 +46,13 @@ export class AdminService {
 
   /** 老板后台总览 + 员工列表（一次返回） */
   async getOverview(): Promise<AdminOverviewResponse> {
-    const [customerRow, supplierRow, employeeRow, keyRow, followRow] = await Promise.all([
+    const [customerRow, supplierRow, supplierFormRow, employeeRow, keyRow, followRow] = await Promise.all([
       this.db.select({ count: count() }).from(customers),
       this.db.select({ count: count() }).from(supplierProducts),
+      this.db
+        .select({ count: count() })
+        .from(supplierProducts)
+        .where(sql`${supplierProducts.submitKey} IS NOT NULL`),
       this.db.select({ count: count() }).from(employees),
       this.db.select({ count: count() }).from(supplierKeys),
       this.db.select({ count: count() }).from(followUps),
@@ -84,6 +88,7 @@ export class AdminService {
       customerTotal: Number(customerRow[0]?.count ?? 0),
       customerByStage: stageDistribution,
       supplierTotal: Number(supplierRow[0]?.count ?? 0),
+      supplierFormTotal: Number(supplierFormRow[0]?.count ?? 0),
       supplierPending: Number(pendingRow[0]?.count ?? 0),
       employeeTotal: Number(employeeRow[0]?.count ?? 0),
       adminTotal: Number(adminRow[0]?.count ?? 0),

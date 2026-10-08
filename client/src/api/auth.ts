@@ -5,6 +5,7 @@ import type {
   AuthResponse,
   LoginDto,
   RegisterDto,
+  ChangePasswordDto,
 } from '@shared/api.interface';
 
 export async function login(dto: LoginDto): Promise<AuthResponse> {
@@ -29,6 +30,20 @@ export async function register(dto: RegisterDto): Promise<AuthResponse> {
     return data;
   } catch (error) {
     logger.error('注册失败', error as Error);
+    throw error;
+  }
+}
+
+/** 修改自己的密码 */
+export async function changePassword(dto: ChangePasswordDto): Promise<{ success: boolean }> {
+  try {
+    const { data } = await axiosForBackend.post<{ success: boolean }>(
+      '/api/auth/change-password',
+      dto
+    );
+    return data;
+  } catch (error) {
+    logger.error('修改密码失败', error as Error);
     throw error;
   }
 }

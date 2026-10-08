@@ -113,6 +113,37 @@ export class AuthService {
     return { token, employee };
   }
 
+  /** 修改自己的密码（需验证旧密码） */
+  async changePassword(employeeId: string, oldPassword: string, newPassword: string): Promise<void> {
+    if (!oldPassword || !newPassword) {
+      throw new BadRequestException('旧密码与新密码均不能为空');
+    }
+    if (newPassword.length < 4) {
+      throw new BadRequestException('新密码至少4位');
+    }
+
+    const found = await this.db
+      .select({ id: employees.id, passwordHash: employees.passwordHash })
+      .from(employees)
+      .where(eq(employees.id, employeeId));
+
+    if (found.length === 0) {
+      throw new UnauthorizedException('账号不存在');
+    }
+
+    const valid: boolean = compareSync(oldPassword, found[0].passwordHash);
+    if (!valid) {
+      throw new UnauthorizedException('旧密码不正确');
+    }
+
+    await this.db
+      .update(employees)
+      .set({ passwordHash: hashSync(newPassword, 10) })
+      .where(eq(employees.id, employeeId));
+
+    this.logger.log(`员工修改密码成功: ${employeeId}`);
+  }
+
   private generateToken(employee: Employee): string {
     return sign(
       { employeeId: employee.id, username: employee.username, name: employee.name, role: employee.role },
