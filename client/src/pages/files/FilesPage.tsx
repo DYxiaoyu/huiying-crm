@@ -63,11 +63,13 @@ export default function FilesPage() {
   const [trash, setTrash] = useState(false);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('');
+  const [timeFilter, setTimeFilter] = useState('');
+  const [sizeFilter, setSizeFilter] = useState('');
   const [page, setPage] = useState(1);
   const [usage, setUsage] = useState<DiskUsage | null>(null);
 
   // 搜索/筛选/回收站切换时回到第1页
-  useEffect(() => { setPage(1); }, [q, filter, trash]);
+  useEffect(() => { setPage(1); }, [q, filter, trash, timeFilter, sizeFilter]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -111,6 +113,27 @@ export default function FilesPage() {
   const filtered = files.filter(f => {
     if (q && !f.name.toLowerCase().includes(q.toLowerCase())) return false;
     if (filter && getType(f.name) !== filter) return false;
+    // 上传时间筛选（mtime 毫秒）
+    if (timeFilter) {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      if (timeFilter === 'today') {
+        const start = new Date(); start.setHours(0, 0, 0, 0);
+        if (f.mtime < start.getTime()) return false;
+      } else if (timeFilter === '7d' && f.mtime < now - 7 * day) return false;
+      else if (timeFilter === '30d' && f.mtime < now - 30 * day) return false;
+      else if (timeFilter === '90d' && f.mtime < now - 90 * day) return false;
+    }
+    // 文件大小筛选（字节）
+    if (sizeFilter) {
+      const MB = 1024 * 1024;
+      const s = f.size;
+      if (sizeFilter === 'lt1' && s >= MB) return false;
+      else if (sizeFilter === '1to10' && (s < MB || s >= 10 * MB)) return false;
+      else if (sizeFilter === '10to50' && (s < 10 * MB || s >= 50 * MB)) return false;
+      else if (sizeFilter === '50to100' && (s < 50 * MB || s >= 100 * MB)) return false;
+      else if (sizeFilter === 'gt100' && s < 100 * MB) return false;
+    }
     return true;
   });
 
@@ -125,7 +148,7 @@ export default function FilesPage() {
         <h1 className="text-xl font-bold flex items-center gap-2">
           <FolderOpen className="w-6 h-6" /> 文件管理
         </h1>
-        <p className="text-sm opacity-90 mt-1">搜索、预览、清理服务器文件 · 回收站保留7天 · 孤儿文件(上传7天未使用)自动进回收站</p>
+        <p className="text-sm opacity-90 mt-1">搜索、预览、清理服务器文件 · 回收站保留7天 · 供应商表单页未提交的文件（7天后）自动进回收站</p>
         {usage && (
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-[13px]">
             <span className="inline-flex items-center gap-1.5">
@@ -170,6 +193,29 @@ export default function FilesPage() {
             className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-amber-500"
           />
         </div>
+        <select
+          value={timeFilter}
+          onChange={e => setTimeFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white"
+        >
+          <option value="">全部时间</option>
+          <option value="today">今天</option>
+          <option value="7d">最近 7 天</option>
+          <option value="30d">最近 30 天</option>
+          <option value="90d">最近 90 天</option>
+        </select>
+        <select
+          value={sizeFilter}
+          onChange={e => setSizeFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white"
+        >
+          <option value="">全部大小</option>
+          <option value="lt1">&lt; 1MB</option>
+          <option value="1to10">1 - 10MB</option>
+          <option value="10to50">10 - 50MB</option>
+          <option value="50to100">50 - 100MB</option>
+          <option value="gt100">&gt; 100MB</option>
+        </select>
         <select
           value={filter}
           onChange={e => setFilter(e.target.value)}
