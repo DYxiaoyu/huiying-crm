@@ -17,6 +17,7 @@ import {
   FileText,
   Clock,
   Globe,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@lark-apaas/client-toolkit/logger';
@@ -253,8 +254,35 @@ const SuppliersPage = () => {
     setRejectDialogOpen(true);
   };
 
-  const handleRejectConfirm = async () => {
-    if (!rejectingProduct) return;
+  /** 下载供应商商品导入模板 */
+  const handleDownloadTemplate = () => {
+    const a = document.createElement('a');
+    a.href = '/api/suppliers/template';
+    a.download = 'supplier-products-import-template.csv';
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  /** 导出当前筛选条件下的供应商商品 */
+  const handleExportCsv = () => {
+    const qs = new URLSearchParams();
+    if (keyword) qs.set('keyword', keyword);
+    if (category && category !== 'all') qs.set('category', category);
+    if (statusFilter && statusFilter !== 'all') qs.set('status', statusFilter);
+    if (sourceFilter && sourceFilter !== 'all') qs.set('source', sourceFilter);
+    const s = qs.toString();
+    const a = document.createElement('a');
+    a.href = s ? `/api/suppliers/export/csv?${s}` : '/api/suppliers/export/csv';
+    a.download = 'supplier-products.csv';
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleRejectConfirm = async () => {    if (!rejectingProduct) return;
     if (!rejectReason.trim()) {
       toast.error('请填写驳回理由');
       return;
@@ -297,13 +325,18 @@ const SuppliersPage = () => {
         remark: r.remark || undefined,
       }));
       const res = await suppliersApi.importItems(items);
-      if (res.imported > 0) {
-        toast.success(`导入成功 ${res.imported} 条${res.skipped > 0 ? `，跳过 ${res.skipped} 条` : ''}`);
+      const failed = res.errors?.length ?? 0;
+      if (res.imported > 0 || res.skipped > 0) {
+        const detail = failed > 0 ? `，失败 ${failed} 条` : '';
+        toast.success(`导入成功 ${res.imported} 条 / 跳过 ${res.skipped} 条${detail}`);
+        if (failed > 0) {
+          toast.error(`失败明细：${res.errors!.slice(0, 3).join('；')}${failed > 3 ? ` 等 ${failed} 条` : ''}`);
+        }
         void fetchList();
         void fetchCategories();
         setPage(1);
       } else {
-        toast.error(`没有可导入的数据${res.errors.length ? `（${res.errors[0]}）` : ''}`);
+        toast.error(`没有可导入的数据${res.errors.length ? `（${res.errors.slice(0, 3).join('；')}${res.errors.length > 3 ? ` 等 ${res.errors.length} 条` : ''}）` : ''}`);
       }
     } catch (error) {
       logger.error('导入供应商商品失败', error as Error);
@@ -348,6 +381,24 @@ const SuppliersPage = () => {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadTemplate}
+              data-ai-section-type="button"
+              className="inline-flex items-center gap-2 px-[14px] py-2 rounded-lg bg-white/15 border border-white/25 text-white text-sm font-medium backdrop-blur hover:bg-white/25 transition-all"
+            >
+              <FileText className="size-4" />
+              <span>下载模板</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              data-ai-section-type="button"
+              className="inline-flex items-center gap-2 px-[14px] py-2 rounded-lg bg-white/15 border border-white/25 text-white text-sm font-medium backdrop-blur hover:bg-white/25 transition-all"
+            >
+              <Download className="size-4" />
+              <span>导出 CSV</span>
+            </button>
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}

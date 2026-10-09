@@ -72,6 +72,8 @@ export function mapHeader(header: string): string {
     stage: 'stage',
     备注: 'remark',
     remark: 'remark',
+    标签: 'tags',
+    tags: 'tags',
     商品: 'productName',
     商品名称: 'productName',
     productName: 'productName',

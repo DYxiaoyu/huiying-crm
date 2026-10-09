@@ -76,29 +76,7 @@ export class CustomersService {
     const safePageSize = Math.min(50, Math.max(1, rawPageSize));
     const offset = (safePage - 1) * safePageSize;
 
-    const conditions = [...this.customerScope(isAdmin, employeeId)];
-    if (keyword && keyword.trim()) {
-      const pattern = `%${keyword.trim()}%`;
-      conditions.push(or(
-        ilike(customers.name, pattern),
-        ilike(customers.phone, pattern),
-        ilike(customers.company, pattern),
-        ilike(customers.remark, pattern),
-        ilike(customers.source, pattern),
-      ));
-    }
-    if (stage) {
-      conditions.push(eq(customers.stage, stage));
-    }
-    if (favoriteOnly) {
-      conditions.push(eq(customers.isFavorite, true));
-    }
-    if (tag && tag.trim()) {
-      conditions.push(ilike(customers.tags, `%"${tag.trim().replace(/"/g, '\\"')}"%`));
-    }
-    if (timeRange && TIME_RANGE_DAYS[timeRange]) {
-      conditions.push(gte(customers.createdAt, new Date(Date.now() - TIME_RANGE_DAYS[timeRange] * 24 * 60 * 60 * 1000)));
-    }
+    const conditions = this.buildCustomerConditions(params, employeeId, isAdmin);
     const whereClause = and(...conditions);
 
     const orderCol = sortBy === 'createdAt'
@@ -384,7 +362,7 @@ export class CustomersService {
     const errors: string[] = [];
     let imported = 0;
     const validRows: Array<typeof customers.$inferInsert> = [];
-    const stageSet = new Set(['new', 'contacted', 'following', 'closed', 'lost']);
+    const stageSet = new Set(['new', 'contacted', 'following', 'quoted', 'negotiating', 'closed', 'lost', 'invalid', 'duplicate']);
 
     items.forEach((item, index) => {
       const name = item.name?.trim();
@@ -418,11 +396,12 @@ export class CustomersService {
     return { imported, skipped: items.length - imported, errors };
   }
 
-  async exportCsv(employeeId: string, isAdmin: boolean): Promise<string> {
+  async exportCsv(params: ListParams, employeeId: string, isAdmin: boolean): Promise<string> {
+    const conditions = this.buildCustomerConditions(params, employeeId, isAdmin);
     const allCustomers = await this.db
       .select()
       .from(customers)
-      .where(and(...this.customerScope(isAdmin, employeeId)))
+      .where(and(...conditions))
       .orderBy(desc(customers.updatedAt));
 
     const customerIds = allCustomers.map((row) => row.id);
@@ -498,6 +477,32 @@ export class CustomersService {
     return '\uFEFF' + lines.join('\r\n');
   }
 
+  /** 客户导入模板：表头 + 一行示例（用户照格式填写，可删除示例行） */
+  templateCsv(): string {
+    const headers = ['客户姓名', '电话', '公司', '来源', '阶段', '标签', '备注'];
+    const example = [
+      '示例客户',
+      '13800000000',
+      '示例公司（可选）',
+      '网页客户',
+      '新客户',
+      '重点客户、待回访',
+      '备注可留空',
+    ];
+    const escapeCsv = (value: string): string => {
+      if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value;
+    };
+    return (
+      '\uFEFF' +
+      headers.map(escapeCsv).join(',') +
+      '\r\n' +
+      example.map(escapeCsv).join(',')
+    );
+  }
+
   async exportBackup(employeeId: string, isAdmin: boolean): Promise<{
     customers: Customer[];
     followUps: Array<{
@@ -563,6 +568,39 @@ export class CustomersService {
   private customerScope(isAdmin: boolean, employeeId: string) {
     if (isAdmin) return [];
     return [or(eq(customers.employeeId, employeeId), isNull(customers.employeeId))];
+  }
+
+  /** 构建客户列表/导出共用的筛选条件 */
+  private buildCustomerConditions(
+    params: Pick<ListParams, 'keyword' | 'stage' | 'favoriteOnly' | 'tag' | 'timeRange'>,
+    employeeId: string,
+    isAdmin: boolean,
+  ) {
+    const { keyword, stage, favoriteOnly, tag, timeRange } = params;
+    const conditions = [...this.customerScope(isAdmin, employeeId)];
+    if (keyword && keyword.trim()) {
+      const pattern = `%${keyword.trim()}%`;
+      conditions.push(or(
+        ilike(customers.name, pattern),
+        ilike(customers.phone, pattern),
+        ilike(customers.company, pattern),
+        ilike(customers.remark, pattern),
+        ilike(customers.source, pattern),
+      ));
+    }
+    if (stage) {
+      conditions.push(eq(customers.stage, stage));
+    }
+    if (favoriteOnly) {
+      conditions.push(eq(customers.isFavorite, true));
+    }
+    if (tag && tag.trim()) {
+      conditions.push(ilike(customers.tags, `%"${tag.trim().replace(/"/g, '\\"')}"%`));
+    }
+    if (timeRange && TIME_RANGE_DAYS[timeRange]) {
+      conditions.push(gte(customers.createdAt, new Date(Date.now() - TIME_RANGE_DAYS[timeRange] * 24 * 60 * 60 * 1000)));
+    }
+    return conditions;
   }
 
   /**

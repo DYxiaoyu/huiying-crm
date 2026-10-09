@@ -120,14 +120,46 @@ export class CustomersController {
 
   @Get('export/csv')
   async exportCsv(
-    @CurrentEmployee() employee: { id: string; role?: string },
     @Res() res: Response,
+    @CurrentEmployee() employee: { id: string; role?: string },
+    @Query('keyword') keyword?: string,
+    @Query('stage') stage?: string,
+    @Query('favoriteOnly') favoriteOnly?: string,
+    @Query('tag') tag?: string,
+    @Query('timeRange') timeRange?: string,
   ): Promise<void> {
-    const csv = await this.customersService.exportCsv(employee.id, employee.role === 'admin');
+    const stageFilter = stage && stage !== '' ? (stage as CustomerStage) : undefined;
+    const safeTimeRange = ['7d', '30d', '90d', '1y'].includes(timeRange ?? '')
+      ? timeRange as TimeRange
+      : undefined;
+    const csv = await this.customersService.exportCsv(
+      {
+        page: 1,
+        pageSize: 100000,
+        keyword,
+        stage: stageFilter,
+        favoriteOnly: favoriteOnly === 'true',
+        tag: tag && tag !== '' ? tag : undefined,
+        timeRange: safeTimeRange,
+      },
+      employee.id,
+      employee.role === 'admin',
+    );
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
       'attachment; filename="customers.csv"',
+    );
+    res.send(csv);
+  }
+
+  @Get('template')
+  async downloadTemplate(@Res() res: Response): Promise<void> {
+    const csv = this.customersService.templateCsv();
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="customers-import-template.csv"',
     );
     res.send(csv);
   }

@@ -99,8 +99,18 @@ export async function checkDuplicate(params: {
   }
 }
 
-export function getCsvUrl(): string {
-  return '/api/customers/export/csv';
+export function getCsvUrl(params?: Record<string, string | undefined>): string {
+  if (!params) return '/api/customers/export/csv';
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v) qs.set(k, v);
+  }
+  const s = qs.toString();
+  return s ? `/api/customers/export/csv?${s}` : '/api/customers/export/csv';
+}
+
+export function getTemplateUrl(): string {
+  return '/api/customers/template';
 }
 
 export function getBackupUrl(): string {

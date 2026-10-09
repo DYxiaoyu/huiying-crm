@@ -12,6 +12,7 @@ import {
   Images,
   Star,
   FileUp,
+  FileText,
   Globe,
   Tag as TagIcon,
   CheckSquare,
@@ -460,10 +461,28 @@ const CustomersPage = () => {
   };
 
   const handleExportCsv = () => {
-    const url = customersApi.getCsvUrl();
+    // 导出当前筛选条件下的客户（搜索/阶段/标签/时间/收藏）
+    const url = customersApi.getCsvUrl({
+      keyword: keyword || undefined,
+      stage: stage || undefined,
+      tag: tag || undefined,
+      timeRange: timeRange || undefined,
+      favoriteOnly: favoriteOnly ? 'true' : undefined,
+    });
     const a = document.createElement('a');
     a.href = url;
     a.download = 'customers.csv';
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleDownloadTemplate = () => {
+    const url = customersApi.getTemplateUrl();
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'customers-import-template.csv';
     a.target = '_blank';
     document.body.appendChild(a);
     a.click();
@@ -517,11 +536,16 @@ const CustomersPage = () => {
           : undefined,
       }));
       const res = await customersApi.importCustomers(items);
-      if (res.imported > 0) {
-        toast.success(`导入成功 ${res.imported} 条${res.skipped > 0 ? `，跳过 ${res.skipped} 条` : ''}`);
+      const failed = res.errors?.length ?? 0;
+      if (res.imported > 0 || res.skipped > 0) {
+        const detail = failed > 0 ? `，失败 ${failed} 条` : '';
+        toast.success(`导入成功 ${res.imported} 条 / 跳过 ${res.skipped} 条${detail}`);
+        if (failed > 0) {
+          toast.error(`失败明细：${res.errors!.slice(0, 3).join('；')}${failed > 3 ? ` 等 ${failed} 条` : ''}`);
+        }
         void fetchList();
       } else {
-        toast.error(`没有可导入的数据${res.errors.length ? `（${res.errors[0]}）` : ''}`);
+        toast.error(`没有可导入的数据${res.errors.length ? `（${res.errors.slice(0, 3).join('；')}${res.errors.length > 3 ? ` 等 ${res.errors.length} 条` : ''}）` : ''}`);
       }
     } catch (error) {
       logger.error('导入客户失败', error as Error);
@@ -583,6 +607,15 @@ const CustomersPage = () => {
             >
               <Download className="size-4" />
               <span>导出 CSV</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadTemplate}
+              data-ai-section-type="button"
+              className="inline-flex items-center gap-2 px-[14px] py-2 rounded-lg bg-white/15 border border-white/25 text-white text-sm font-medium backdrop-blur hover:bg-white/25 transition-all"
+            >
+              <FileText className="size-4" />
+              <span>下载模板</span>
             </button>
             <button
               type="button"

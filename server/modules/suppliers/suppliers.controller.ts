@@ -9,7 +9,9 @@ import {
   Query,
   UseGuards,
   BadRequestException,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { SuppliersService } from './suppliers.service';
 import { EmployeeAuthGuard } from '@server/modules/auth/employee-auth.guard';
 import { CurrentEmployee } from '@server/modules/auth/current-employee.decorator';
@@ -67,6 +69,47 @@ export class SuppliersController {
   @Get('categories')
   async categories(): Promise<string[]> {
     return this.suppliersService.categories();
+  }
+
+  @Get('export/csv')
+  async exportCsv(
+    @Res() res: Response,
+    @Query('keyword') keyword?: string,
+    @Query('category') category?: string,
+    @Query('status') status?: string,
+    @Query('source') source?: string,
+  ): Promise<void> {
+    const safeStatus: SupplierStatus | undefined =
+      status === 'pending' || status === 'approved' || status === 'rejected'
+        ? (status as SupplierStatus)
+        : undefined;
+    const safeSource: 'form' | 'admin' | undefined =
+      source === 'form' || source === 'admin' ? source : undefined;
+    const csv = await this.suppliersService.exportCsv({
+      page: 1,
+      pageSize: 100000,
+      keyword,
+      category,
+      status: safeStatus,
+      source: safeSource,
+    });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="supplier-products.csv"',
+    );
+    res.send(csv);
+  }
+
+  @Get('template')
+  async downloadTemplate(@Res() res: Response): Promise<void> {
+    const csv = this.suppliersService.templateCsv();
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="supplier-products-import-template.csv"',
+    );
+    res.send(csv);
   }
 
   @Post('import')

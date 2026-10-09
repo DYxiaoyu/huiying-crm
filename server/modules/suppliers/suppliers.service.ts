@@ -47,36 +47,7 @@ export class SuppliersService {
     const safePageSize = Math.min(50, Math.max(1, rawPageSize));
     const offset = (safePage - 1) * safePageSize;
 
-    const conditions = [];
-    if (keyword && keyword.trim()) {
-      const pattern = `%${keyword.trim()}%`;
-      conditions.push(or(
-        ilike(supplierProducts.productName, pattern),
-        ilike(supplierProducts.supplierName, pattern),
-        ilike(supplierProducts.category, pattern),
-        ilike(supplierProducts.spec, pattern),
-        ilike(supplierProducts.contactName, pattern),
-        ilike(supplierProducts.contactPhone, pattern),
-        ilike(supplierProducts.mainCategory, pattern),
-      ));
-    }
-    if (category && category.trim()) {
-      conditions.push(eq(supplierProducts.category, category.trim()));
-    }
-    if (status) {
-      conditions.push(eq(supplierProducts.status, status));
-    }
-    if (source === 'form') {
-      // 供应商入驻页表单提交：带 submit_key
-      conditions.push(
-        sql`${supplierProducts.submitKey} IS NOT NULL`
-      );
-    } else if (source === 'admin') {
-      // 后台添加：无 submit_key
-      conditions.push(
-        sql`${supplierProducts.submitKey} IS NULL`
-      );
-    }
+    const conditions = this.buildListConditions(params);
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const orderCol = sortBy === 'createdAt'
@@ -115,8 +86,115 @@ export class SuppliersService {
     };
   }
 
-  async categories(): Promise<string[]> {
+  /** 构建供应商商品列表/导出共用的筛选条件 */
+  private buildListConditions(params: ListParams) {
+    const { keyword, category, status, source } = params;
+    const conditions = [];
+    if (keyword && keyword.trim()) {
+      const pattern = `%${keyword.trim()}%`;
+      conditions.push(or(
+        ilike(supplierProducts.productName, pattern),
+        ilike(supplierProducts.supplierName, pattern),
+        ilike(supplierProducts.category, pattern),
+        ilike(supplierProducts.spec, pattern),
+        ilike(supplierProducts.contactName, pattern),
+        ilike(supplierProducts.contactPhone, pattern),
+        ilike(supplierProducts.mainCategory, pattern),
+      ));
+    }
+    if (category && category.trim()) {
+      conditions.push(eq(supplierProducts.category, category.trim()));
+    }
+    if (status) {
+      conditions.push(eq(supplierProducts.status, status));
+    }
+    if (source === 'form') {
+      conditions.push(sql`${supplierProducts.submitKey} IS NOT NULL`);
+    } else if (source === 'admin') {
+      conditions.push(sql`${supplierProducts.submitKey} IS NULL`);
+    }
+    return conditions;
+  }
+
+  /** 导出当前筛选条件下的供应商商品（列与导入模板对齐，另加状态/来源/时间） */
+  async exportCsv(params: ListParams): Promise<string> {
+    const conditions = this.buildListConditions(params);
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     const rows = await this.db
+      .select()
+      .from(supplierProducts)
+      .where(whereClause)
+      .orderBy(desc(supplierProducts.updatedAt));
+
+    const headers = [
+      '商品名称', '供应商名称', '分类', '价格', '单位', '规格型号', '备注',
+      '商品链接', '网盘链接', '联系人', '电话', '微信', '地址',
+      '状态', '来源', '创建时间',
+    ];
+    const statusNameMap: Record<string, string> = {
+      pending: '待审核',
+      approved: '已通过',
+      rejected: '已驳回',
+    };
+    const escapeCsv = (value: string | null | undefined): string => {
+      if (value == null) return '';
+      const s = String(value);
+      if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    };
+    const parseJsonList = (raw: string | null): string => {
+      if (!raw) return '';
+      try {
+        const arr = JSON.parse(raw);
+        if (!Array.isArray(arr)) return '';
+        return arr.map((x) => (typeof x === 'string' ? x : (x?.url ?? x?.name ?? ''))).join('；');
+      } catch {
+        return '';
+      }
+    };
+
+    const lines: string[] = [headers.join(',')];
+    for (const row of rows) {
+      lines.push([
+        escapeCsv(row.productName),
+        escapeCsv(row.supplierName),
+        escapeCsv(row.category),
+        escapeCsv(row.price),
+        escapeCsv(row.unit),
+        escapeCsv(row.spec),
+        escapeCsv(row.remark),
+        escapeCsv(row.productUrl),
+        escapeCsv(parseJsonList(row.files)),
+        escapeCsv(row.contactName),
+        escapeCsv(row.contactPhone),
+        escapeCsv(row.wechat),
+        escapeCsv(row.address),
+        escapeCsv(statusNameMap[row.status] ?? row.status),
+        escapeCsv(row.submitKey ? '供应商表单' : '后台添加'),
+        escapeCsv(row.createdAt.toISOString()),
+      ].join(','));
+    }
+    return '\uFEFF' + lines.join('\r\n');
+  }
+
+  /** 供应商商品导入模板：表头 + 一行示例 */
+  templateCsv(): string {
+    const headers = ['商品名称', '供应商名称', '分类', '价格', '单位', '规格型号', '备注'];
+    const example = [
+      '示例商品',
+      '示例供应商有限公司',
+      '电动工具',
+      '面议',
+      '台',
+      '型号可留空',
+      '备注可留空',
+    ];
+    return '\uFEFF' + headers.join(',') + '\r\n' + example.join(',');
+  }
+
+  async categories(): Promise<string[]> {    const rows = await this.db
       .select({ category: supplierProducts.category })
       .from(supplierProducts);
     const set = new Set<string>();
