@@ -56,7 +56,7 @@ function fmtSize(b: number): string {
   return (b/1048576).toFixed(1) + 'MB';
 }
 
-const PAGE_SIZES = [15, 30, 100] as const;
+const PAGE_SIZES = [10, 20, 30, 50, 100] as const;
 
 interface DiskUsage {
   files: number;

@@ -223,7 +223,7 @@ const CustomersPage = () => {
   const [tag, setTag] = useState('');
   const [tags, setTags] = useState<TagStat[]>([]);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(15);
+  const [pageSize, setPageSize] = useState(10);
 
   const [items, setItems] = useState<Customer[]>([]);
   const [total, setTotal] = useState(0);
@@ -1177,8 +1177,10 @@ const CustomersPage = () => {
                   }}
                   className="h-[30px] px-2 rounded-md border border-[#E4E7EC] bg-white text-[13px] text-[#1D2733] outline-none focus:border-primary"
                 >
-                  <option value={15}>15</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
                   <option value={30}>30</option>
+                  <option value={50}>50</option>
                   <option value={100}>100</option>
                 </select>
                 <span className="text-[13px] text-[#98A2B3]">条</span>

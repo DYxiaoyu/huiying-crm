@@ -38,11 +38,5 @@ const MainApp = () => {
 
 createRoot(document.getElementById('root')!).render(<MainApp />);
 
-// PWA：仅在生产环境注册 Service Worker
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      /* 注册失败不影响正常使用 */
-    });
-  });
-}
+// 注：不再注册 Service Worker（旧版 SW 在部分内嵌浏览器中缓存旧页面导致布局错乱，
+// 已在 sw.js 中改为卸载清理版，由已注册的浏览器自动完成卸载）
