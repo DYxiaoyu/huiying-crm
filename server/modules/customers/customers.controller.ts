@@ -23,6 +23,12 @@ import type {
   DuplicateCheckResult,
   ImportCustomerItem,
   ImportResult,
+  TagStat,
+  BatchUpdateStageDto,
+  BatchUpdateTagsDto,
+  BatchDeleteDto,
+  BatchResult,
+  TimeRange,
 } from '@shared/api.interface';
 
 @Controller('api/customers')
@@ -40,6 +46,8 @@ export class CustomersController {
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: string,
     @Query('favoriteOnly') favoriteOnly?: string,
+    @Query('tag') tag?: string,
+    @Query('timeRange') timeRange?: string,
   ): Promise<CustomerListResponse> {
     const pageNum = page ? parseInt(page, 10) : 1;
     const pageSizeNum = pageSize ? parseInt(pageSize, 10) : 10;
@@ -48,6 +56,9 @@ export class CustomersController {
       ? sortBy as 'createdAt' | 'name'
       : 'updatedAt';
     const safeSortOrder = sortOrder === 'asc' ? 'asc' : 'desc';
+    const safeTimeRange = ['7d', '30d', '90d', '1y'].includes(timeRange ?? '')
+      ? timeRange as TimeRange
+      : undefined;
 
     return this.customersService.list(
       {
@@ -58,10 +69,43 @@ export class CustomersController {
         sortBy: safeSortBy,
         sortOrder: safeSortOrder,
         favoriteOnly: favoriteOnly === 'true',
+        tag: tag && tag !== '' ? tag : undefined,
+        timeRange: safeTimeRange,
       },
       employee.id,
       employee.role === 'admin',
     );
+  }
+
+  @Get('tags')
+  async getTags(
+    @CurrentEmployee() employee: { id: string; role?: string },
+  ): Promise<TagStat[]> {
+    return this.customersService.getTags(employee.id, employee.role === 'admin');
+  }
+
+  @Post('batch/stage')
+  async batchUpdateStage(
+    @CurrentEmployee() employee: { id: string; role?: string },
+    @Body() dto: BatchUpdateStageDto,
+  ): Promise<BatchResult> {
+    return this.customersService.batchUpdateStage(dto.ids, dto.stage, employee.id, employee.role === 'admin');
+  }
+
+  @Post('batch/tags')
+  async batchUpdateTags(
+    @CurrentEmployee() employee: { id: string; role?: string },
+    @Body() dto: BatchUpdateTagsDto,
+  ): Promise<BatchResult> {
+    return this.customersService.batchUpdateTags(dto.ids, dto.tags, employee.id, employee.role === 'admin');
+  }
+
+  @Post('batch/delete')
+  async batchDelete(
+    @CurrentEmployee() employee: { id: string; role?: string },
+    @Body() dto: BatchDeleteDto,
+  ): Promise<BatchResult> {
+    return this.customersService.batchRemove(dto.ids, employee.id, employee.role === 'admin');
   }
 
   @Get('check-duplicate')

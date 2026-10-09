@@ -9,7 +9,7 @@ import {
 import { DRIZZLE_DATABASE } from '@server/database/database.module';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { customers, followUps } from '@server/database/schema';
-import { eq, and, count, desc, asc, ilike, or, max, ne, inArray, isNull } from 'drizzle-orm';
+import { eq, and, count, desc, asc, ilike, or, max, ne, inArray, isNull, gte } from 'drizzle-orm';
 import type {
   Customer,
   CustomerListResponse,
@@ -19,6 +19,9 @@ import type {
   DuplicateCheckResult,
   ImportCustomerItem,
   ImportResult,
+  TagStat,
+  BatchResult,
+  TimeRange,
 } from '@shared/api.interface';
 
 interface ListParams {
@@ -29,9 +32,37 @@ interface ListParams {
   sortBy?: 'updatedAt' | 'createdAt' | 'name';
   sortOrder?: 'asc' | 'desc';
   favoriteOnly?: boolean;
+  tag?: string;
+  timeRange?: TimeRange;
 }
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const TIME_RANGE_DAYS: Record<TimeRange, number> = {
+  '7d': 7,
+  '30d': 30,
+  '90d': 90,
+  '1y': 365,
+};
+
+/** 预置常用标签（客户可自定义新标签） */
+export const PRESET_TAGS = ['重点客户', '大客户', '待回访', '已报价', '潜在客户', '黑名单'];
+
+/** 解析 tags JSON 列 → string[] */
+function parseTags(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((x) => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function toTagsJson(tags: string[] | undefined): string | null {
+  if (!tags || !Array.isArray(tags)) return null;
+  const cleaned = [...new Set(tags.map((t) => String(t).trim()).filter((t) => t.length > 0))];
+  return cleaned.length > 0 ? JSON.stringify(cleaned) : null;
+}
 
 @Injectable()
 export class CustomersService {
@@ -40,7 +71,7 @@ export class CustomersService {
   constructor(@Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase) {}
 
   async list(params: ListParams, employeeId: string, isAdmin: boolean): Promise<CustomerListResponse> {
-    const { page, pageSize: rawPageSize, keyword, stage, sortBy, sortOrder, favoriteOnly } = params;
+    const { page, pageSize: rawPageSize, keyword, stage, sortBy, sortOrder, favoriteOnly, tag, timeRange } = params;
     const safePage = Math.max(1, page);
     const safePageSize = Math.min(50, Math.max(1, rawPageSize));
     const offset = (safePage - 1) * safePageSize;
@@ -52,6 +83,8 @@ export class CustomersService {
         ilike(customers.name, pattern),
         ilike(customers.phone, pattern),
         ilike(customers.company, pattern),
+        ilike(customers.remark, pattern),
+        ilike(customers.source, pattern),
       ));
     }
     if (stage) {
@@ -59,6 +92,12 @@ export class CustomersService {
     }
     if (favoriteOnly) {
       conditions.push(eq(customers.isFavorite, true));
+    }
+    if (tag && tag.trim()) {
+      conditions.push(ilike(customers.tags, `%"${tag.trim().replace(/"/g, '\\"')}"%`));
+    }
+    if (timeRange && TIME_RANGE_DAYS[timeRange]) {
+      conditions.push(gte(customers.createdAt, new Date(Date.now() - TIME_RANGE_DAYS[timeRange] * 24 * 60 * 60 * 1000)));
     }
     const whereClause = and(...conditions);
 
@@ -158,6 +197,7 @@ export class CustomersService {
         source: dto.source ?? null,
         stage: dto.stage ?? 'new',
         remark: dto.remark ?? null,
+        tags: toTagsJson(dto.tags),
         employeeId,
       })
       .returning();
@@ -183,6 +223,7 @@ export class CustomersService {
     if (dto.stage !== undefined) patch.stage = dto.stage;
     if (dto.remark !== undefined) patch.remark = dto.remark;
     if (dto.isFavorite !== undefined) patch.isFavorite = dto.isFavorite;
+    if (dto.tags !== undefined) patch.tags = toTagsJson(dto.tags);
 
     if (Object.keys(patch).length === 0) {
       throw new BadRequestException('未提供可更新字段');
@@ -223,6 +264,61 @@ export class CustomersService {
     }
     await this.db.delete(customers).where(eq(customers.id, id));
     this.logger.log(`删除客户成功: ${id}`);
+  }
+
+  /** 标签聚合：返回可见范围内所有标签及客户数（用于筛选下拉） */
+  async getTags(employeeId: string, isAdmin: boolean): Promise<TagStat[]> {
+    const rows = await this.db
+      .select({ tags: customers.tags })
+      .from(customers)
+      .where(and(...this.customerScope(isAdmin, employeeId)));
+    const countMap = new Map<string, number>();
+    for (const row of rows) {
+      for (const tag of parseTags(row.tags)) {
+        countMap.set(tag, (countMap.get(tag) ?? 0) + 1);
+      }
+    }
+    return [...countMap.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }
+
+  /** 批量修改阶段 */
+  async batchUpdateStage(ids: string[], stage: CustomerStage, employeeId: string, isAdmin: boolean): Promise<BatchResult> {
+    if (!ids || ids.length === 0) throw new BadRequestException('请选择客户');
+    const scope = this.customerScope(isAdmin, employeeId);
+    const result = await this.db
+      .update(customers)
+      .set({ stage, updatedAt: new Date() })
+      .where(and(...scope, inArray(customers.id, ids)))
+      .returning({ id: customers.id });
+    this.logger.log(`批量修改阶段: ${result.length} 条 → ${stage}`);
+    return { updated: result.length };
+  }
+
+  /** 批量打标签（覆盖式：以传入 tags 为准） */
+  async batchUpdateTags(ids: string[], tags: string[], employeeId: string, isAdmin: boolean): Promise<BatchResult> {
+    if (!ids || ids.length === 0) throw new BadRequestException('请选择客户');
+    const scope = this.customerScope(isAdmin, employeeId);
+    const result = await this.db
+      .update(customers)
+      .set({ tags: toTagsJson(tags), updatedAt: new Date() })
+      .where(and(...scope, inArray(customers.id, ids)))
+      .returning({ id: customers.id });
+    this.logger.log(`批量打标签: ${result.length} 条`);
+    return { updated: result.length };
+  }
+
+  /** 批量删除 */
+  async batchRemove(ids: string[], employeeId: string, isAdmin: boolean): Promise<BatchResult> {
+    if (!ids || ids.length === 0) throw new BadRequestException('请选择客户');
+    const scope = this.customerScope(isAdmin, employeeId);
+    const result = await this.db
+      .delete(customers)
+      .where(and(...scope, inArray(customers.id, ids)))
+      .returning({ id: customers.id });
+    this.logger.log(`批量删除客户: ${result.length} 条`);
+    return { updated: result.length };
   }
 
   async checkDuplicate(
@@ -304,6 +400,7 @@ export class CustomersService {
         source: item.source?.trim() || null,
         stage,
         remark: item.remark?.trim() || null,
+        tags: toTagsJson(item.tags),
         employeeId,
       });
     });
@@ -354,7 +451,7 @@ export class CustomersService {
     }
 
     const headers = [
-      '客户姓名', '电话', '公司', '来源', '阶段', '备注',
+      '客户姓名', '电话', '公司', '来源', '阶段', '标签', '备注',
       '最近跟进时间', '最近跟进内容', '创建时间', '更新时间',
     ];
 
@@ -388,6 +485,7 @@ export class CustomersService {
         escapeCsv(c.company),
         escapeCsv(c.source),
         escapeCsv(stageNameMap[c.stage] ?? c.stage),
+        escapeCsv(parseTags(c.tags).join('、')),
         escapeCsv(c.remark),
         escapeCsv(lastFollow ? lastFollow.followAt.toISOString() : ''),
         escapeCsv(lastFollow ? lastFollow.content : ''),
@@ -488,6 +586,7 @@ export class CustomersService {
       source: row.source,
       stage: row.stage as CustomerStage,
       remark: row.remark,
+      tags: parseTags(row.tags),
       employeeId: row.employeeId ?? '',
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

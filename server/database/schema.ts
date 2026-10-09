@@ -175,6 +175,7 @@ export const customers = pgTable("customers", {
   source: varchar("source", { length: 100 }),
   stage: varchar("stage", { length: 50 }).notNull().default('new'),
   remark: text("remark"),
+  tags: text("tags"),
   isFavorite: boolean("is_favorite").notNull().default(false),
   owner: uuid("owner").default(sql`CASE
     WHEN (current_setting('app.user_id'::text, true) = ''::text) THEN NULL`),

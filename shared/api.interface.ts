@@ -31,6 +31,7 @@ export interface Customer {
   source: string | null;
   stage: CustomerStage;
   remark: string | null;
+  tags: string[];
   employeeId: string;
   createdAt: string;
   updatedAt: string;
@@ -50,6 +51,8 @@ export interface FollowUp {
   createdAt: string;
 }
 
+export type TimeRange = '7d' | '30d' | '90d' | '1y';
+
 export interface CustomerListQuery {
   page?: number;
   pageSize?: number;
@@ -58,6 +61,8 @@ export interface CustomerListQuery {
   sortBy?: 'updatedAt' | 'createdAt' | 'name';
   sortOrder?: 'asc' | 'desc';
   favoriteOnly?: boolean;
+  tag?: string;
+  timeRange?: TimeRange;
 }
 
 export interface CustomerListResponse {
@@ -67,6 +72,11 @@ export interface CustomerListResponse {
   pageSize: number;
 }
 
+export interface TagStat {
+  name: string;
+  count: number;
+}
+
 export interface CreateCustomerDto {
   name: string;
   phone?: string;
@@ -74,6 +84,7 @@ export interface CreateCustomerDto {
   source?: string;
   stage?: CustomerStage;
   remark?: string;
+  tags?: string[];
 }
 
 export interface UpdateCustomerDto {
@@ -84,6 +95,25 @@ export interface UpdateCustomerDto {
   stage?: CustomerStage;
   remark?: string;
   isFavorite?: boolean;
+  tags?: string[];
+}
+
+export interface BatchUpdateStageDto {
+  ids: string[];
+  stage: CustomerStage;
+}
+
+export interface BatchUpdateTagsDto {
+  ids: string[];
+  tags: string[];
+}
+
+export interface BatchDeleteDto {
+  ids: string[];
+}
+
+export interface BatchResult {
+  updated: number;
 }
 
 export interface DuplicateCheckResult {
@@ -257,6 +287,7 @@ export interface ImportCustomerItem {
   source?: string;
   stage?: CustomerStage;
   remark?: string;
+  tags?: string[];
 }
 
 export interface ImportSupplierItem {

@@ -47,11 +47,12 @@ const customerSchema = z.object({
   company: z.string().optional(),
   source: z.string().optional(),
   stage: z.custom<CustomerStage>((val) => {
-    return ['new', 'contacted', 'following', 'closed', 'lost'].includes(
+    return ['new', 'contacted', 'following', 'quoted', 'negotiating', 'closed', 'lost', 'invalid', 'duplicate'].includes(
       val as string
     );
   }),
   remark: z.string().optional(),
+  tags: z.array(z.string()).optional(),
 });
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
@@ -75,6 +76,79 @@ const STAGE_OPTIONS: { value: CustomerStage; label: string }[] = [
   { value: 'duplicate', label: '重复客户' },
 ];
 
+/** 预置常用标签 + 自定义新增 */
+const PRESET_TAGS = ['重点客户', '大客户', '待回访', '已报价', '潜在客户', '黑名单'];
+
+function TagPicker({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (tags: string[]) => void;
+}) {
+  const [input, setInput] = useState('');
+
+  const toggle = (tag: string) => {
+    onChange(value.includes(tag) ? value.filter((t) => t !== tag) : [...value, tag]);
+  };
+
+  const addCustom = () => {
+    const tag = input.trim();
+    if (!tag) return;
+    if (!value.includes(tag)) onChange([...value, tag]);
+    setInput('');
+  };
+
+  const usedTags = [...new Set([...PRESET_TAGS, ...value])];
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-1.5">
+        {usedTags.map((tag) => {
+          const selected = value.includes(tag);
+          return (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => toggle(tag)}
+              className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                selected
+                  ? 'bg-[#0E7C6B] border-[#0E7C6B] text-white'
+                  : 'bg-white border-[#D0D5DD] text-[#5B6773] hover:border-[#0E7C6B] hover:text-[#0E7C6B]'
+              }`}
+            >
+              {tag}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex gap-1.5">
+        <Input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              addCustom();
+            }
+          }}
+          placeholder="输入自定义标签，回车添加"
+          className="h-8 text-xs"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addCustom}
+          className="shrink-0"
+        >
+          添加
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function CustomerDialog({
   open,
   onOpenChange,
@@ -96,6 +170,7 @@ export function CustomerDialog({
       source: '',
       stage: 'new',
       remark: '',
+      tags: [],
     },
   });
 
@@ -112,6 +187,7 @@ export function CustomerDialog({
           source: customer.source ?? '',
           stage: customer.stage,
           remark: customer.remark ?? '',
+          tags: customer.tags ?? [],
         });
       } else {
         form.reset({
@@ -121,6 +197,7 @@ export function CustomerDialog({
           source: '',
           stage: 'new',
           remark: '',
+          tags: [],
         });
       }
       setDuplicateResult(null);
@@ -213,6 +290,7 @@ export function CustomerDialog({
           source: values.source || undefined,
           stage: values.stage,
           remark: values.remark || undefined,
+          tags: values.tags ?? [],
         };
         await customersApi.update(customer.id, dto);
       } else {
@@ -223,6 +301,7 @@ export function CustomerDialog({
           source: values.source || undefined,
           stage: values.stage,
           remark: values.remark || undefined,
+          tags: values.tags ?? [],
         };
         await customersApi.create(dto);
       }
@@ -342,6 +421,23 @@ export function CustomerDialog({
                       placeholder="请输入备注信息"
                       rows={3}
                       {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="tags"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>标签（可多选 / 自定义）</FormLabel>
+                  <FormControl>
+                    <TagPicker
+                      value={field.value ?? []}
+                      onChange={field.onChange}
                     />
                   </FormControl>
                   <FormMessage />

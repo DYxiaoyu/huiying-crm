@@ -118,6 +118,8 @@ async function ensureSchema(client: postgres.Sql): Promise<void> {
 
     -- 收藏字段（老表升级用，幂等）
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_favorite boolean NOT NULL DEFAULT false;
+    -- 客户标签（JSON 数组字符串，老表升级用，幂等）
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS tags text;
   `);
 }
 

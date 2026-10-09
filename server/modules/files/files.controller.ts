@@ -182,6 +182,27 @@ export class FilesController {
     }
   }
 
+  @Post('batch-delete')
+  batchDelete(@Body('names') names?: string[]) {
+    if (!Array.isArray(names) || names.length === 0) {
+      throw new BadRequestException('请选择文件');
+    }
+    ensureTrash();
+    const results = { ok: 0, failed: 0, errors: [] as string[] };
+    for (const name of names) {
+      safeName(name);
+      try {
+        const fp = resolveRel(name);
+        fs.renameSync(fp, path.join(TRASH_DIR, path.basename(name)));
+        results.ok += 1;
+      } catch (e: any) {
+        results.failed += 1;
+        results.errors.push(`${name}: ${e.message}`);
+      }
+    }
+    return results;
+  }
+
   @Post('restore')
   restore(@Body('name') name: string) {
     ensureTrash();

@@ -13,9 +13,14 @@ import {
   Star,
   FileUp,
   Globe,
+  Tag as TagIcon,
+  CheckSquare,
+  Square,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@lark-apaas/client-toolkit/logger';
+import { showConfirm } from '@lark-apaas/client-toolkit';
 import { useAuth } from '../../contexts/AuthContext';
 
 import { Button } from '@/components/ui/button';
@@ -27,6 +32,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -57,11 +70,36 @@ import {
 import * as customersApi from '@/api/customers';
 import { csvToObjects } from '@/utils/csv';
 import { CustomerDialog } from './CustomerDialog';
+import { CustomerDetailDrawer } from './CustomerDetailDrawer';
 import type {
   Customer,
   CustomerStage,
   ImportCustomerItem,
+  TagStat,
+  TimeRange,
 } from '@shared/api.interface';
+
+const TIME_RANGE_OPTIONS: { value: TimeRange | ''; label: string }[] = [
+  { value: '', label: '全部时间' },
+  { value: '7d', label: '最近 7 天' },
+  { value: '30d', label: '最近 30 天' },
+  { value: '90d', label: '最近 90 天' },
+  { value: '1y', label: '最近 1 年' },
+];
+
+const BATCH_STAGE_OPTIONS: { value: CustomerStage; label: string }[] = [
+  { value: 'new', label: '新客户' },
+  { value: 'contacted', label: '已联系' },
+  { value: 'following', label: '跟进中' },
+  { value: 'quoted', label: '已报价' },
+  { value: 'negotiating', label: '谈判中' },
+  { value: 'closed', label: '已成交' },
+  { value: 'lost', label: '已流失' },
+  { value: 'invalid', label: '无效客户' },
+  { value: 'duplicate', label: '重复客户' },
+];
+
+const BATCH_TAG_PRESETS = ['重点客户', '大客户', '待回访', '已报价', '潜在客户', '黑名单'];
 
 const STAGE_NAME_TO_VALUE: Record<string, CustomerStage> = {
   新客户: 'new',
@@ -179,6 +217,9 @@ const CustomersPage = () => {
   const [stage, setStage] = useState<CustomerStage | ''>(urlStage);
   const [sortValue, setSortValue] = useState('updatedAt-desc');
   const [favoriteOnly, setFavoriteOnly] = useState(false);
+  const [timeRange, setTimeRange] = useState<TimeRange | ''>('');
+  const [tag, setTag] = useState('');
+  const [tags, setTags] = useState<TagStat[]>([]);
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -192,6 +233,17 @@ const CustomersPage = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // 多选批量
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [batchDialog, setBatchDialog] = useState<'stage' | 'tags' | 'delete' | null>(null);
+  const [batchStage, setBatchStage] = useState<CustomerStage>('new');
+  const [batchTags, setBatchTags] = useState<string[]>([]);
+  const [batchTagInput, setBatchTagInput] = useState('');
+  const [batchSubmitting, setBatchSubmitting] = useState(false);
+
+  // 详情抽屉
+  const [drawerId, setDrawerId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -214,6 +266,8 @@ const CustomersPage = () => {
         sortBy,
         sortOrder,
         favoriteOnly: favoriteOnly || undefined,
+        tag: tag || undefined,
+        timeRange: timeRange || undefined,
       });
       setItems(res.items);
       setTotal(res.total);
@@ -222,11 +276,20 @@ const CustomersPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, stage, sortBy, sortOrder, favoriteOnly]);
+  }, [page, pageSize, keyword, stage, sortBy, sortOrder, favoriteOnly, tag, timeRange]);
 
   useEffect(() => {
     void fetchList();
   }, [fetchList]);
+
+  // 加载标签池（筛选下拉）
+  useEffect(() => {
+    let alive = true;
+    customersApi.getTags().then((list) => {
+      if (alive) setTags(list);
+    }).catch((e) => logger.error('加载标签失败', e as Error));
+    return () => { alive = false; };
+  }, []);
 
   const totalPages = useMemo(() => {
     return Math.max(1, Math.ceil(total / pageSize));
@@ -243,7 +306,94 @@ const CustomersPage = () => {
   };
 
   const handleView = (id: string) => {
-    navigate(`/customers/${id}`);
+    setDrawerId(id);
+  };
+
+  const handleTimeRangeChange = (value: string) => {
+    setTimeRange(value as TimeRange | '');
+    setPage(1);
+  };
+
+  const handleTagChange = (value: string) => {
+    setTag(value);
+    setPage(1);
+  };
+
+  // ===== 多选批量 =====
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const allSelected = items.length > 0 && items.every((c) => selectedIds.includes(c.id));
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) =>
+      allSelected ? prev.filter((id) => !items.some((c) => c.id === id)) : [...new Set([...prev, ...items.map((c) => c.id)])]
+    );
+  };
+
+  const handleBatchStage = async () => {
+    if (!batchStage || selectedIds.length === 0) return;
+    setBatchSubmitting(true);
+    try {
+      const res = await customersApi.batchUpdateStage({ ids: selectedIds, stage: batchStage });
+      toast.success(`已更新 ${res.updated} 条客户阶段`);
+      setBatchDialog(null);
+      setSelectedIds([]);
+      void fetchList();
+    } catch (e) {
+      logger.error('批量改阶段失败', e as Error);
+      toast.error('批量改阶段失败，请重试');
+    } finally {
+      setBatchSubmitting(false);
+    }
+  };
+
+  const handleBatchTags = async () => {
+    if (selectedIds.length === 0) return;
+    setBatchSubmitting(true);
+    try {
+      const res = await customersApi.batchUpdateTags({ ids: selectedIds, tags: batchTags });
+      toast.success(`已为 ${res.updated} 条客户打标签`);
+      setBatchDialog(null);
+      setBatchTags([]);
+      setSelectedIds([]);
+      void fetchList();
+    } catch (e) {
+      logger.error('批量打标签失败', e as Error);
+      toast.error('批量打标签失败，请重试');
+    } finally {
+      setBatchSubmitting(false);
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.length === 0) return;
+    setBatchSubmitting(true);
+    try {
+      const res = await customersApi.batchDelete({ ids: selectedIds });
+      toast.success(`已删除 ${res.updated} 条客户`);
+      setBatchDialog(null);
+      setSelectedIds([]);
+      void fetchList();
+    } catch (e) {
+      logger.error('批量删除失败', e as Error);
+      toast.error('批量删除失败，请重试');
+    } finally {
+      setBatchSubmitting(false);
+    }
+  };
+
+  const toggleBatchTag = (t: string) => {
+    setBatchTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
+  };
+
+  const addBatchTag = () => {
+    const t = batchTagInput.trim();
+    if (!t) return;
+    if (!batchTags.includes(t)) setBatchTags((prev) => [...prev, t]);
+    setBatchTagInput('');
   };
 
   const handleDeleteClick = (id: string) => {
@@ -361,6 +511,9 @@ const CustomersPage = () => {
         source: r.source || undefined,
         stage: (r.stage && STAGE_NAME_TO_VALUE[r.stage]) || undefined,
         remark: r.remark || undefined,
+        tags: r.tags
+          ? String(r.tags).split(/[、,，;；]/).map((t) => t.trim()).filter((t) => t.length > 0)
+          : undefined,
       }));
       const res = await customersApi.importCustomers(items);
       if (res.imported > 0) {
@@ -520,6 +673,46 @@ const CustomersPage = () => {
           </Select>
         </div>
 
+        {/* 时间筛选 */}
+        <div className="shrink-0">
+          <Select value={timeRange} onValueChange={handleTimeRangeChange}>
+            <SelectTrigger className="min-w-[130px] h-9 px-3 rounded-lg border border-[#E4E7EC] bg-white text-sm text-[#1D2733]">
+              <SelectValue placeholder="全部时间" />
+            </SelectTrigger>
+            <SelectContent>
+              {TIME_RANGE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* 标签筛选 */}
+        <div className="shrink-0">
+          <Select value={tag} onValueChange={handleTagChange}>
+            <SelectTrigger className="min-w-[130px] h-9 px-3 rounded-lg border border-[#E4E7EC] bg-white text-sm text-[#1D2733]">
+              <SelectValue placeholder="全部标签">
+                {tag ? (
+                  <span className="inline-flex items-center gap-1">
+                    <TagIcon className="size-3.5" />
+                    {tag}
+                  </span>
+                ) : '全部标签'}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">全部标签</SelectItem>
+              {tags.map((t) => (
+                <SelectItem key={t.name} value={t.name}>
+                  {t.name}（{t.count}）
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* 只看收藏 */}
         <button
           type="button"
@@ -562,11 +755,61 @@ const CustomersPage = () => {
           </div>
         ) : (
           <>
+            {/* ===== 批量操作条 ===== */}
+            {selectedIds.length > 0 && (
+              <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 px-4 py-2.5 bg-[#F0F9F6] border-b border-[#CDE8DE]">
+                <span className="text-[13px] font-medium text-[#0E7C6B]">
+                  已选 {selectedIds.length} 条
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setBatchStage('new'); setBatchDialog('stage'); }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium text-[#0E7C6B] bg-white border border-[#B8DCCD] hover:bg-[#0E7C6B] hover:text-white transition-all"
+                >
+                  批量改阶段
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setBatchTags([]); setBatchDialog('tags'); }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium text-[#0E7C6B] bg-white border border-[#B8DCCD] hover:bg-[#0E7C6B] hover:text-white transition-all"
+                >
+                  <TagIcon className="size-3.5" />
+                  批量打标签
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBatchDialog('delete')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium text-[#DC2626] bg-white border border-[#F3C1C1] hover:bg-[#DC2626] hover:text-white transition-all"
+                >
+                  <Trash2 className="size-3.5" />
+                  批量删除
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds([])}
+                  className="ml-auto inline-flex items-center gap-1 px-2 py-1 text-[12px] text-[#5B6773] hover:text-[#1D2733] transition-colors"
+                >
+                  <X className="size-3.5" />
+                  取消选择
+                </button>
+              </div>
+            )}
+
             {/* ===== 桌面端表格 ===== */}
             <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-[#E4E7EC] hover:bg-transparent bg-[#FAFBFC]">
+                  <TableHead className="px-4 py-3 w-10">
+                    <button
+                      type="button"
+                      onClick={toggleSelectAll}
+                      className={`transition-colors ${allSelected ? 'text-[#0E7C6B]' : 'text-[#98A2B3] hover:text-[#0E7C6B]'}`}
+                      aria-label={allSelected ? '取消全选' : '全选'}
+                    >
+                      {allSelected ? <CheckSquare className="size-4" /> : <Square className="size-4" />}
+                    </button>
+                  </TableHead>
                   <TableHead className="px-4 py-3 text-xs font-medium text-[#98A2B3]">
                     客户姓名
                   </TableHead>
@@ -583,6 +826,9 @@ const CustomersPage = () => {
                     阶段
                   </TableHead>
                   <TableHead className="px-4 py-3 text-xs font-medium text-[#98A2B3]">
+                    标签
+                  </TableHead>
+                  <TableHead className="px-4 py-3 text-xs font-medium text-[#98A2B3]">
                     最近跟进时间
                   </TableHead>
                   <TableHead className="px-4 py-3 text-xs font-medium text-[#98A2B3] text-right">
@@ -593,11 +839,22 @@ const CustomersPage = () => {
               <TableBody>
                 {items.map((customer: Customer) => {
                   const stageBadge = STAGE_BADGE_MAP[customer.stage];
+                  const isSelected = selectedIds.includes(customer.id);
                   return (
                     <TableRow
                       key={customer.id}
-                      className="border-b border-[#EAECF0] hover:bg-[#F7F9FA]"
+                      className={`border-b border-[#EAECF0] ${isSelected ? 'bg-[#F0F9F6]' : 'hover:bg-[#F7F9FA]'}`}
                     >
+                      <TableCell className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleSelect(customer.id)}
+                          className={`transition-colors ${isSelected ? 'text-[#0E7C6B]' : 'text-[#98A2B3] hover:text-[#0E7C6B]'}`}
+                          aria-label={isSelected ? '取消选择' : '选择'}
+                        >
+                          {isSelected ? <CheckSquare className="size-4" /> : <Square className="size-4" />}
+                        </button>
+                      </TableCell>
                       <TableCell className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <button
@@ -614,9 +871,13 @@ const CustomersPage = () => {
                               className={`size-4 ${customer.isFavorite ? 'fill-[#F5B93C]' : ''}`}
                             />
                           </button>
-                          <span className="font-semibold text-[#1D2733]">
+                          <button
+                            type="button"
+                            onClick={() => handleView(customer.id)}
+                            className="font-semibold text-[#1D2733] hover:text-[#0E7C6B] transition-colors"
+                          >
                             {customer.name}
-                          </span>
+                          </button>
                           {customer.isOverdue && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FDECEC] text-[#DC2626] text-[11px] font-medium">
                               <span className="size-1.5 rounded-full bg-[#DC2626]" />
@@ -643,6 +904,27 @@ const CustomersPage = () => {
                           />
                           {stageBadge.label}
                         </span>
+                      </TableCell>
+                      <TableCell className="px-4 py-3">
+                        {customer.tags && customer.tags.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {customer.tags.slice(0, 3).map((t) => (
+                              <span
+                                key={t}
+                                className="px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-[#E5F4EC] text-[#0E7C6B]"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                            {customer.tags.length > 3 && (
+                              <span className="text-[11px] text-[#98A2B3]">
+                                +{customer.tags.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-[#D0D5DD]">-</span>
+                        )}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-sm text-[#5B6773]">
                         {formatDateTime(customer.lastFollowAt ?? customer.updatedAt)}
@@ -705,14 +987,23 @@ const CustomersPage = () => {
             <div className="md:hidden">
               {items.map((customer: Customer) => {
                 const stageBadge = STAGE_BADGE_MAP[customer.stage];
+                const isSelected = selectedIds.includes(customer.id);
                 return (
                   <div
                     key={customer.id}
-                    className="p-4 border-b border-[#EAECF0] last:border-b-0 hover:bg-[#F7F9FA] transition-colors"
+                    className={`p-4 border-b border-[#EAECF0] last:border-b-0 ${isSelected ? 'bg-[#F0F9F6]' : 'hover:bg-[#F7F9FA]'} transition-colors`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => toggleSelect(customer.id)}
+                            className={`transition-colors ${isSelected ? 'text-[#0E7C6B]' : 'text-[#98A2B3] hover:text-[#0E7C6B]'}`}
+                            aria-label={isSelected ? '取消选择' : '选择'}
+                          >
+                            {isSelected ? <CheckSquare className="size-4" /> : <Square className="size-4" />}
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleToggleFavorite(customer)}
@@ -727,9 +1018,13 @@ const CustomersPage = () => {
                               className={`size-4 ${customer.isFavorite ? 'fill-[#F5B93C]' : ''}`}
                             />
                           </button>
-                          <span className="font-semibold text-[#1D2733] text-[15px]">
+                          <button
+                            type="button"
+                            onClick={() => handleView(customer.id)}
+                            className="font-semibold text-[#1D2733] text-[15px] hover:text-[#0E7C6B] transition-colors"
+                          >
                             {customer.name}
-                          </span>
+                          </button>
                           <span
                             className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${stageBadge.bgColor} ${stageBadge.textColor}`}
                           >
@@ -745,6 +1040,18 @@ const CustomersPage = () => {
                             </span>
                           )}
                         </div>
+                        {customer.tags && customer.tags.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {customer.tags.map((t) => (
+                              <span
+                                key={t}
+                                className="px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-[#E5F4EC] text-[#0E7C6B]"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         <div className="mt-2 space-y-1 text-[13px] text-[#5B6773]">
                           <div className="flex items-center gap-2">
                             <span className="text-[#98A2B3] w-8">电话</span>
@@ -860,6 +1167,121 @@ const CustomersPage = () => {
         customer={editingCustomer}
         onSuccess={fetchList}
       />
+
+      {/* 详情抽屉 */}
+      <CustomerDetailDrawer
+        customerId={drawerId}
+        onClose={() => setDrawerId(null)}
+        onSuccess={fetchList}
+      />
+
+      {/* 批量改阶段弹窗 */}
+      <Dialog open={batchDialog === 'stage'} onOpenChange={(o) => { if (!o) setBatchDialog(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>批量修改阶段（{selectedIds.length} 条）</DialogTitle>
+            <DialogDescription>将所选客户统一移动到该阶段</DialogDescription>
+          </DialogHeader>
+          <Select value={batchStage} onValueChange={(v) => setBatchStage(v as CustomerStage)}>
+            <SelectTrigger className="w-full h-10 rounded-lg border border-[#E4E7EC]">
+              <SelectValue placeholder="选择阶段" />
+            </SelectTrigger>
+            <SelectContent>
+              {BATCH_STAGE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setBatchDialog(null)}>
+              取消
+            </Button>
+            <Button type="button" onClick={handleBatchStage} disabled={batchSubmitting}>
+              {batchSubmitting ? '处理中...' : '确认修改'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 批量打标签弹窗 */}
+      <Dialog open={batchDialog === 'tags'} onOpenChange={(o) => { if (!o) setBatchDialog(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>批量打标签（{selectedIds.length} 条）</DialogTitle>
+            <DialogDescription>选择的标签将覆盖式应用到所选客户（未选择的标签会被移除）</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap gap-1.5">
+              {[...new Set([...BATCH_TAG_PRESETS, ...batchTags])].map((t) => {
+                const selected = batchTags.includes(t);
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => toggleBatchTag(t)}
+                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                      selected
+                        ? 'bg-[#0E7C6B] border-[#0E7C6B] text-white'
+                        : 'bg-white border-[#D0D5DD] text-[#5B6773] hover:border-[#0E7C6B] hover:text-[#0E7C6B]'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex gap-1.5">
+              <Input
+                value={batchTagInput}
+                onChange={(e) => setBatchTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addBatchTag();
+                  }
+                }}
+                placeholder="输入自定义标签，回车添加"
+                className="h-9 text-xs"
+              />
+              <Button type="button" variant="outline" size="sm" onClick={addBatchTag} className="shrink-0">
+                添加
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setBatchDialog(null)}>
+              取消
+            </Button>
+            <Button type="button" onClick={handleBatchTags} disabled={batchSubmitting}>
+              {batchSubmitting ? '处理中...' : '确认打标签'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 批量删除确认 */}
+      <AlertDialog open={batchDialog === 'delete'} onOpenChange={(o) => { if (!o) setBatchDialog(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>批量删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除选中的 {selectedIds.length} 条客户吗？此操作不可撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={batchSubmitting}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBatchDelete}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+              disabled={batchSubmitting}
+            >
+              {batchSubmitting ? '删除中...' : '删除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* 删除确认 */}
       <AlertDialog

@@ -2,6 +2,10 @@ import { logger } from '@lark-apaas/client-toolkit/logger';
 import { axiosForBackend } from '@lark-apaas/client-toolkit/utils/getAxiosForBackend';
 
 import type {
+  BatchDeleteDto,
+  BatchResult,
+  BatchUpdateStageDto,
+  BatchUpdateTagsDto,
   CreateCustomerDto,
   Customer,
   CustomerListQuery,
@@ -9,6 +13,7 @@ import type {
   DuplicateCheckResult,
   ImportCustomerItem,
   ImportResult,
+  TagStat,
   UpdateCustomerDto,
 } from '@shared/api.interface';
 
@@ -113,6 +118,63 @@ export async function importCustomers(
     return data;
   } catch (error) {
     logger.error('导入客户失败', error as Error);
+    throw error;
+  }
+}
+
+export async function getTags(): Promise<TagStat[]> {
+  try {
+    const { data } = await axiosForBackend.get<TagStat[]>(
+      '/api/customers/tags'
+    );
+    return data;
+  } catch (error) {
+    logger.error('获取客户标签失败', error as Error);
+    throw error;
+  }
+}
+
+export async function batchUpdateStage(
+  dto: BatchUpdateStageDto
+): Promise<BatchResult> {
+  try {
+    const { data } = await axiosForBackend.post<BatchResult>(
+      '/api/customers/batch/stage',
+      dto
+    );
+    return data;
+  } catch (error) {
+    logger.error('批量修改阶段失败', error as Error);
+    throw error;
+  }
+}
+
+export async function batchUpdateTags(
+  dto: BatchUpdateTagsDto
+): Promise<BatchResult> {
+  try {
+    const { data } = await axiosForBackend.post<BatchResult>(
+      '/api/customers/batch/tags',
+      dto
+    );
+    return data;
+  } catch (error) {
+    logger.error('批量打标签失败', error as Error);
+    throw error;
+  }
+}
+
+export async function batchDelete(
+  dto: BatchDeleteDto
+): Promise<BatchResult> {
+  try {
+    const { data } = await axiosForBackend.post<BatchResult>(
+      '/api/customers/batch/delete',
+      dto
+    );
+    return data;
+  } catch (error) {
+    logger.error('批量删除客户失败', error as Error);
     throw error;
   }
 }

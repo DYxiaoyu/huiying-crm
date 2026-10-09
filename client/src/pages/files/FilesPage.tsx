@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { FolderOpen, Trash2, Search, Download, RotateCcw, X } from 'lucide-react';
+import { FolderOpen, Trash2, Search, Download, RotateCcw, X, CheckSquare, Square } from 'lucide-react';
 import { axiosForBackend } from '@lark-apaas/client-toolkit/utils/getAxiosForBackend';
 
 interface FileRef {
@@ -73,11 +73,13 @@ export default function FilesPage() {
   const [filter, setFilter] = useState('');
   const [timeFilter, setTimeFilter] = useState('');
   const [sizeFilter, setSizeFilter] = useState('');
+  const [unrefOnly, setUnrefOnly] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [usage, setUsage] = useState<DiskUsage | null>(null);
 
-  // 搜索/筛选/回收站切换时回到第1页
-  useEffect(() => { setPage(1); }, [q, filter, trash, timeFilter, sizeFilter]);
+  // 搜索/筛选/回收站切换时回到第1页并清空选择
+  useEffect(() => { setPage(1); setSelected([]); }, [q, filter, trash, timeFilter, sizeFilter, unrefOnly]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -118,9 +120,29 @@ export default function FilesPage() {
     load();
   };
 
+  /** 批量删除（移入回收站） */
+  const batchDelete = async () => {
+    if (selected.length === 0) return;
+    if (!confirm(`批量删除 ${selected.length} 个文件？移入回收站保留7天`)) return;
+    const { data } = await axiosForBackend.post('/api/files/batch-delete', { names: selected });
+    const res = data as { ok: number; failed: number; errors?: string[] };
+    setSelected([]);
+    load();
+    if (res.ok > 0) {
+      alert(`已删除 ${res.ok} 个文件${res.failed > 0 ? `，${res.failed} 个失败` : ''}`);
+    } else {
+      alert(`删除失败：${res.errors?.join('；') ?? '未知错误'}`);
+    }
+  };
+
+  const toggleSelect = (rel: string) => {
+    setSelected((prev) => (prev.includes(rel) ? prev.filter((x) => x !== rel) : [...prev, rel]));
+  };
+
   const filtered = files.filter(f => {
     if (q && !f.name.toLowerCase().includes(q.toLowerCase())) return false;
     if (filter && getType(f.name) !== filter) return false;
+    if (unrefOnly && f.refs && f.refs.length > 0) return false;
     // 上传时间筛选（mtime 毫秒）
     if (timeFilter) {
       const now = Date.now();
@@ -235,6 +257,17 @@ export default function FilesPage() {
           <option value="archive">压缩包</option>
           <option value="other">其他</option>
         </select>
+        <button
+          onClick={() => setUnrefOnly(prev => !prev)}
+          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+            unrefOnly
+              ? 'bg-amber-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+          title="仅显示未被任何商品/供应商引用的文件"
+        >
+          仅看未引用
+        </button>
       </div>
 
       {trash && (
@@ -243,7 +276,35 @@ export default function FilesPage() {
         </div>
       )}
 
-      <div className="text-sm text-gray-500 mb-2">共 {filtered.length} 个文件</div>
+      <div className="text-sm text-gray-500 mb-2 flex flex-wrap items-center gap-3">
+        <span>共 {filtered.length} 个文件</span>
+        {unrefOnly && !trash && (
+          <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
+            仅显示未引用文件
+          </span>
+        )}
+      </div>
+
+      {/* 批量操作条 */}
+      {!trash && selected.length > 0 && (
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 px-3 py-2 mb-2 bg-amber-50 border border-amber-200 rounded-lg">
+          <span className="text-sm font-medium text-amber-800">
+            已选 {selected.length} 个文件
+          </span>
+          <button
+            onClick={batchDelete}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium text-white bg-red-600 hover:bg-red-700 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" /> 批量删除
+          </button>
+          <button
+            onClick={() => setSelected([])}
+            className="ml-auto inline-flex items-center gap-1 px-2 py-1 text-[12px] text-amber-800 hover:text-amber-950 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" /> 取消选择
+          </button>
+        </div>
+      )}
 
       {/* 文件网格 */}
       {loading ? (
@@ -258,20 +319,40 @@ export default function FilesPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           {pageItems.map(f => {
             const t = getType(f.name);
+            const isSelected = selected.includes(f.rel);
             return (
-              <div key={f.name} className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100">
-                <div className="aspect-[4/3] bg-gray-50 flex items-center justify-center overflow-hidden">
-                  {t === 'image' ? (
-                    <img
-                      src={'/uploads/' + encodeURIComponent(f.rel)}
-                      loading="lazy"
-                      className="w-full h-full object-cover cursor-pointer"
-                      onClick={() => window.open('/uploads/' + encodeURIComponent(f.rel))}
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
-                  ) : (
-                    <FileTypeIcon name={f.name} />
+              <div
+                key={f.name}
+                className={`bg-white rounded-xl overflow-hidden shadow-sm border transition-colors ${
+                  isSelected ? 'border-amber-500 ring-2 ring-amber-200' : 'border-gray-100'
+                }`}
+              >
+                <div className="relative">
+                  {!trash && (
+                    <button
+                      type="button"
+                      onClick={() => toggleSelect(f.rel)}
+                      className={`absolute top-2 left-2 z-10 p-1 rounded-md bg-white/90 shadow-sm transition-colors ${
+                        isSelected ? 'text-amber-600' : 'text-gray-400 hover:text-amber-600'
+                      }`}
+                      aria-label={isSelected ? '取消选择' : '选择'}
+                    >
+                      {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                    </button>
                   )}
+                  <div className="aspect-[4/3] bg-gray-50 flex items-center justify-center overflow-hidden">
+                    {t === 'image' ? (
+                      <img
+                        src={'/uploads/' + encodeURIComponent(f.rel)}
+                        loading="lazy"
+                        className="w-full h-full object-cover cursor-pointer"
+                        onClick={() => window.open('/uploads/' + encodeURIComponent(f.rel))}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <FileTypeIcon name={f.name} />
+                    )}
+                  </div>
                 </div>
                 <div className="p-2.5">
                   <div className="text-xs font-medium truncate" title={f.name}>{f.name}</div>
