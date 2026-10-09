@@ -6,6 +6,7 @@ import {
 import { DRIZZLE_DATABASE } from '@server/database/database.module';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { supplierProducts, supplierKeys, customers } from '@server/database/schema';
+import { eq } from 'drizzle-orm';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -17,11 +18,20 @@ const TRASH_DIR = path.join(UPLOAD_DIR, '.trash');
 // 数据库可能存 /uploads/ 或 /api/uploads/ 两种前缀（历史上做过 SQL 替换），都识别
 function toUploadName(p: string): string | null {
   const s = (p || '').trim();
-  if (s.startsWith('/uploads/') || s.startsWith('/api/uploads/')) {
-    return path.basename(s);
-  }
+  // 兼容 /uploads/xxx、/api/uploads/xxx、完整 URL（http(s)://域名/uploads/xxx）
+  const m = s.match(/^(?:https?:\/\/[^/]+)?\/(?:api\/)?uploads\/(.+)$/i);
+  if (m) return path.basename(m[1]);
   return null;
 }
+
+/** 图片 mime → 扩展名 */
+const IMAGE_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+};
 
 @Injectable()
 export class FilesService {
@@ -319,6 +329,73 @@ export class FilesService {
     out.push({ name: 'README-搬家说明.txt', content: readme });
 
     return out;
+  }
+
+  /** 将数据库里的 base64 商品图片迁移为磁盘文件，并更新 imageUrl/images 为 /uploads/ 路径（幂等，可重复执行） */
+  async migrateBase64Images(): Promise<{ scanned: number; migrated: number; skipped: number; errors: string[] }> {
+    const rows = await this.db.select().from(supplierProducts);
+    const errors: string[] = [];
+    let migrated = 0;
+    let skipped = 0;
+
+    const saveB64 = (dataUrl: string): string | null => {
+      const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/s);
+      if (!m) return null;
+      const ext = IMAGE_EXT[m[1].toLowerCase()];
+      if (!ext) return null;
+      const name = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}.${ext}`;
+      try {
+        fs.writeFileSync(path.join(UPLOAD_DIR, name), Buffer.from(m[2], 'base64'));
+        return '/uploads/' + name;
+      } catch (e: any) {
+        errors.push(`写入磁盘失败 ${name}: ${e?.message || e}`);
+        return null;
+      }
+    };
+
+    for (const r of rows) {
+      const patch: Record<string, string | null> = {};
+      if (r.imageUrl && /^data:image\//i.test(r.imageUrl)) {
+        const p = saveB64(r.imageUrl);
+        if (p) { patch.imageUrl = p; migrated++; }
+        else skipped++;
+      }
+      if (r.images) {
+        try {
+          const arr = JSON.parse(r.images);
+          if (Array.isArray(arr)) {
+            let changed = false;
+            const next = arr.map((item: unknown): unknown => {
+              if (typeof item === 'string') {
+                if (/^data:image\//i.test(item)) {
+                  const p = saveB64(item);
+                  if (p) { changed = true; migrated++; return p; }
+                  skipped++;
+                  return item;
+                }
+                return item;
+              }
+              if (item && typeof item === 'object') {
+                const o = item as { url?: string };
+                if (o.url && /^data:image\//i.test(o.url)) {
+                  const p = saveB64(o.url);
+                  if (p) { changed = true; migrated++; return { ...o, url: p }; }
+                  skipped++;
+                }
+              }
+              return item;
+            });
+            if (changed) patch.images = JSON.stringify(next);
+          }
+        } catch {
+          /* JSON 损坏跳过 */
+        }
+      }
+      if (Object.keys(patch).length > 0) {
+        await this.db.update(supplierProducts).set(patch as any).where(eq(supplierProducts.id, r.id));
+      }
+    }
+    return { scanned: rows.length, migrated, skipped, errors };
   }
 }
 

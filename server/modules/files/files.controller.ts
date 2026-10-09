@@ -28,10 +28,23 @@ function ensureTrash() {
 }
 
 function safeName(name: string) {
-  if (!name || name.includes('/') || name.includes('\\') || name.includes('..')) {
+  if (!name || name.includes('..')) {
     throw new BadRequestException('非法文件名');
   }
   return name;
+}
+
+/** 相对路径（支持 public/ 子目录）→ 磁盘绝对路径；仅允许 uploads 内部，防目录穿越 */
+function resolveRel(rel: string): string {
+  const clean = String(rel || '').replace(/^\/+/, '').replace(/\\/g, '/');
+  if (!clean || clean.includes('..') || clean.startsWith('.trash')) {
+    throw new BadRequestException('非法路径');
+  }
+  const abs = path.normalize(path.join(UPLOAD_DIR, clean));
+  if (!abs.startsWith(UPLOAD_DIR + path.sep) && abs !== UPLOAD_DIR) {
+    throw new BadRequestException('非法路径');
+  }
+  return abs;
 }
 
 @Controller('api/files')
@@ -130,24 +143,29 @@ export class FilesController {
   @Get('list')
   async list(@Query('trash') trash?: string) {
     ensureTrash();
-    const dir = trash === '1' ? TRASH_DIR : UPLOAD_DIR;
     const refMap = await this.filesService.getRefMap();
-    const files = fs.readdirSync(dir)
-      .filter(f => !f.startsWith('.'))
-      .map(f => {
-        try {
-          const st = fs.statSync(path.join(dir, f));
-          if (!st.isFile()) return null; // 只列文件，跳过子目录（如 public/）
-          const refs = (refMap.get(f) || []).map(r => ({
-            productName: r.productName,
-            supplierName: r.supplierName,
-            role: r.role,
-          }));
-          return { name: f, size: st.size, mtime: Math.floor(st.mtimeMs), refs };
-        } catch (e) { return null; }
-      })
-      .filter(Boolean)
-      .sort((a: any, b: any) => b.mtime - a.mtime);
+    const files: { name: string; rel: string; size: number; mtime: number; refs: { productName: string; supplierName: string; role: string }[] }[] = [];
+    // 主目录 + public 子目录都列出（rel 区分）；回收站只有一层
+    const dir = trash === '1' ? TRASH_DIR : UPLOAD_DIR;
+    const collect = (d: string, prefix: string) => {
+      let entries: string[] = [];
+      try { entries = fs.readdirSync(d); } catch { return; }
+      for (const f of entries) {
+        if (f.startsWith('.')) continue;
+        const fp = path.join(d, f);
+        let st;
+        try { st = fs.statSync(fp); } catch { continue; }
+        if (st.isDirectory()) {
+          if (trash !== '1') collect(fp, prefix + f + '/'); // 递归子目录（如 public/）
+          continue;
+        }
+        const rel = prefix + f;
+        const refs = (refMap.get(f) || []).map(r => ({ productName: r.productName, supplierName: r.supplierName, role: r.role }));
+        files.push({ name: f, rel, size: st.size, mtime: Math.floor(st.mtimeMs), refs });
+      }
+    };
+    collect(dir, '');
+    files.sort((a, b) => b.mtime - a.mtime);
     return files;
   }
 
@@ -156,7 +174,8 @@ export class FilesController {
     ensureTrash();
     safeName(name);
     try {
-      fs.renameSync(path.join(UPLOAD_DIR, name), path.join(TRASH_DIR, name));
+      const fp = resolveRel(name);
+      fs.renameSync(fp, path.join(TRASH_DIR, path.basename(name)));
       return { ok: true };
     } catch (e: any) {
       throw new BadRequestException(e.message);
@@ -168,7 +187,7 @@ export class FilesController {
     ensureTrash();
     safeName(name);
     try {
-      fs.renameSync(path.join(TRASH_DIR, name), path.join(UPLOAD_DIR, name));
+      fs.renameSync(path.join(TRASH_DIR, path.basename(name)), resolveRel(name));
       return { ok: true };
     } catch (e: any) {
       throw new BadRequestException(e.message);
@@ -180,10 +199,16 @@ export class FilesController {
     ensureTrash();
     safeName(name);
     try {
-      fs.unlinkSync(path.join(TRASH_DIR, name));
+      fs.unlinkSync(path.join(TRASH_DIR, path.basename(name)));
       return { ok: true };
     } catch (e: any) {
       throw new BadRequestException(e.message);
     }
+  }
+
+  /** 一次性迁移：数据库 base64 商品图片 → 磁盘文件，并更新引用为 /uploads/ 路径 */
+  @Post('migrate-images')
+  async migrateImages() {
+    return this.filesService.migrateBase64Images();
   }
 }

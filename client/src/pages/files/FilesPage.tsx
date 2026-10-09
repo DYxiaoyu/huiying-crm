@@ -10,6 +10,7 @@ interface FileRef {
 
 interface FileItem {
   name: string;
+  rel: string;
   size: number;
   mtime: number;
   refs?: FileRef[];
@@ -262,10 +263,10 @@ export default function FilesPage() {
                 <div className="aspect-[4/3] bg-gray-50 flex items-center justify-center overflow-hidden">
                   {t === 'image' ? (
                     <img
-                      src={'/uploads/' + encodeURIComponent(f.name)}
+                      src={'/uploads/' + encodeURIComponent(f.rel)}
                       loading="lazy"
                       className="w-full h-full object-cover cursor-pointer"
-                      onClick={() => window.open('/uploads/' + encodeURIComponent(f.name))}
+                      onClick={() => window.open('/uploads/' + encodeURIComponent(f.rel))}
                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
                   ) : (
@@ -301,14 +302,14 @@ export default function FilesPage() {
                   {!trash && (
                     <>
                       <a
-                        href={'/uploads/' + encodeURIComponent(f.name)}
+                        href={'/uploads/' + encodeURIComponent(f.rel)}
                         target="_blank"
                         className="flex items-center gap-1 px-2 py-1 text-[11px] bg-blue-50 text-blue-600 rounded"
                       >
                         <Download className="w-3 h-3" /> 下载
                       </a>
                       <button
-                        onClick={() => del(f.name)}
+                        onClick={() => del(f.rel)}
                         className="flex items-center gap-1 px-2 py-1 text-[11px] bg-red-50 text-red-600 rounded"
                       >
                         <Trash2 className="w-3 h-3" /> 删除

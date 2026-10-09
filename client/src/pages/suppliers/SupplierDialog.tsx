@@ -100,10 +100,29 @@ export function SupplierDialog({
     if (list.length === 0) return;
     for (const f of list) {
       try {
+        // 压缩 → 转 blob → 立即上传到服务器磁盘，保存时提交 URL（与文件上传一致，避免 base64 存库）
         const data = await compressImage(f);
-        setImages((prev) => [...prev, data]);
+        const blob = await (await fetch(data)).blob();
+        const fd = new FormData();
+        fd.append('file', blob, f.name.replace(/[^\w.\-]/g, '_') || 'image.jpg');
+        setUploading({ name: f.name, progress: 0 });
+        const { data: up } = await axiosForBackend.post<{ url: string; name: string; size: number }>(
+          '/api/files/upload',
+          fd,
+          {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (p) => {
+              if (p.total) setUploading({ name: f.name, progress: Math.round((p.loaded / p.total) * 100) });
+            },
+            timeout: 0,
+          }
+        );
+        setImages((prev) => [...prev, up.url]);
+        toast.success(`${f.name} 上传完成`);
       } catch {
         toast.error(`图片 ${f.name} 处理失败`);
+      } finally {
+        setUploading(null);
       }
     }
     if (imgInputRef.current) imgInputRef.current.value = '';

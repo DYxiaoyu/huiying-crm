@@ -65,9 +65,23 @@ export class SupplierPublicService {
     if (!contactName) throw new BadRequestException('请填写联系人姓名');
     if (!contactPhone) throw new BadRequestException('请填写联系电话');
 
-    // 图片校验：多图数组（前端已压缩）
+    // 图片校验：多图数组（前端已压缩），base64 立即解码写盘存 /uploads/ 路径（避免数据库膨胀与孤儿文件）
     const IMG_LIMIT = 500;
     const IMG_PER_IMG = 180 * 1024; // 压缩后单张 base64 上限 ~130KB
+    const saveImage = (s: string): string | null => {
+      const m = s.match(/^data:([^;]+);base64,(.+)$/s);
+      if (!m) return null;
+      const extMap: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
+      const ext = extMap[m[1].toLowerCase()];
+      if (!ext) return null;
+      const name = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}.${ext}`;
+      try {
+        fs.writeFileSync(path.join(UPLOAD_DIR, name), Buffer.from(m[2], 'base64'));
+        return '/uploads/' + name;
+      } catch (e) {
+        return null;
+      }
+    };
     let imageList: string[] = [];
     if (Array.isArray(dto.images) && dto.images.length > 0) {
       if (dto.images.length > IMG_LIMIT) {
@@ -83,7 +97,8 @@ export class SupplierPublicService {
         if (!mimeMatch || !IMAGE_MIME.has(mimeMatch[1])) {
           throw new BadRequestException('仅支持 jpg / png / webp / gif 图片');
         }
-        imageList.push(s);
+        const url = saveImage(s);
+        if (url) imageList.push(url);
       }
     }
     // 兼容旧版单图
@@ -91,7 +106,10 @@ export class SupplierPublicService {
       const s = dto.imageData.trim();
       if (s.length <= MAX_IMAGE_DATA) {
         const mimeMatch = s.match(/^data:([^;]+);base64,/);
-        if (mimeMatch && IMAGE_MIME.has(mimeMatch[1])) imageList.push(s);
+        if (mimeMatch && IMAGE_MIME.has(mimeMatch[1])) {
+          const url = saveImage(s);
+          if (url) imageList.push(url);
+        }
       }
     }
     const imageUrl = imageList[0] || null;
