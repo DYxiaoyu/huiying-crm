@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Query,
+  Res,
   UseGuards,
   BadRequestException,
   UseInterceptors,
@@ -16,6 +17,8 @@ import { EmployeeAuthGuard } from '@server/modules/auth/employee-auth.guard';
 import { FilesService } from './files.service';
 import * as fs from 'fs';
 import * as path from 'path';
+import archiver = require('archiver');
+import type { Response } from 'express';
 
 const UPLOAD_DIR = '/app/uploads';
 const TRASH_DIR = '/app/uploads/.trash';
@@ -40,6 +43,37 @@ export class FilesController {
   @Get('usage')
   usage() {
     return this.filesService.usage();
+  }
+
+  /** 整目录打包下载（zip：/app/uploads 全部文件，含 public/ 与 .trash/，保留相对路径） */
+  @Get('backup')
+  async backup(@Res() res: Response) {
+    try {
+      const archive = archiver('zip', { zlib: { level: 6 } });
+      const date = new Date().toISOString().slice(0, 10);
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="uploads-backup-${date}.zip"`);
+      archive.on('error', (e: Error) => {
+        try { res.destroy(); } catch (err) { /* ignore */ }
+      });
+      archive.pipe(res);
+      const walk = (dir: string, prefix: string) => {
+        let entries: string[] = [];
+        try { entries = fs.readdirSync(dir); } catch { return; }
+        for (const name of entries) {
+          const full = path.join(dir, name);
+          const rel = prefix + name;
+          let st;
+          try { st = fs.statSync(full); } catch { continue; }
+          if (st.isDirectory()) walk(full, rel + '/');
+          else if (st.isFile()) archive.file(full, { name: rel });
+        }
+      };
+      walk(UPLOAD_DIR, '');
+      await archive.finalize();
+    } catch (e: any) {
+      throw new BadRequestException('打包失败：' + (e?.message || '未知错误'));
+    }
   }
 
   /** 立即触发一次孤儿文件清理（上传超7天且未被引用→回收站） */
