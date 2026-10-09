@@ -71,6 +71,7 @@ import * as customersApi from '@/api/customers';
 import { csvToObjects } from '@/utils/csv';
 import { CustomerDialog } from './CustomerDialog';
 import { CustomerDetailDrawer } from './CustomerDetailDrawer';
+import { PageJump } from '@/components/PageJump';
 import type {
   Customer,
   CustomerStage,
@@ -1144,9 +1145,7 @@ const CustomersPage = () => {
               >
                 上一页
               </button>
-              <span className="text-[13px] text-[#5B6773]">
-                {page} / {totalPages}
-              </span>
+              <PageJump page={page} totalPages={totalPages} onChange={setPage} />
               <button
                 type="button"
                 onClick={handleNextPage}

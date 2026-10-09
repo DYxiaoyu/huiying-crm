@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { logger } from '@lark-apaas/client-toolkit/logger';
 
 import { Button } from '@/components/ui/button';
+import { PageJump } from '@/components/PageJump';
 import {
   Select,
   SelectContent,
@@ -706,9 +707,7 @@ const SuppliersPage = () => {
               >
                 上一页
               </button>
-              <span className="text-[13px] text-[#5B6773]">
-                {page} / {totalPages}
-              </span>
+              <PageJump page={page} totalPages={totalPages} onChange={setPage} />
               <button
                 type="button"
                 onClick={handleNextPage}

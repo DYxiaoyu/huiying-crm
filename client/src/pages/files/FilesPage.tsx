@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { FolderOpen, Trash2, Search, Download, RotateCcw, X, CheckSquare, Square } from 'lucide-react';
 import { axiosForBackend } from '@lark-apaas/client-toolkit/utils/getAxiosForBackend';
+import { PageJump } from '@/components/PageJump';
 
 interface FileRef {
   productName: string;
@@ -428,9 +429,7 @@ export default function FilesPage() {
             >
               上一页
             </button>
-            <span className="text-sm text-gray-500">
-              第 {curPage} / {totalPages} 页
-            </span>
+            <PageJump page={curPage} totalPages={totalPages} onChange={setPage} />
             <button
               onClick={() => setPage(Math.min(totalPages, curPage + 1))}
               disabled={curPage >= totalPages}
