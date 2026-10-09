@@ -56,7 +56,7 @@ function fmtSize(b: number): string {
   return (b/1048576).toFixed(1) + 'MB';
 }
 
-const PAGE_SIZE = 30;
+const PAGE_SIZES = [15, 30, 100] as const;
 
 interface DiskUsage {
   files: number;
@@ -77,6 +77,7 @@ export default function FilesPage() {
   const [unrefOnly, setUnrefOnly] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(30);
   const [usage, setUsage] = useState<DiskUsage | null>(null);
 
   // 搜索/筛选/回收站切换时回到第1页并清空选择
@@ -168,9 +169,9 @@ export default function FilesPage() {
     return true;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const curPage = Math.min(page, totalPages);
-  const pageItems = filtered.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
+  const pageItems = filtered.slice((curPage - 1) * pageSize, curPage * pageSize);
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -421,22 +422,40 @@ export default function FilesPage() {
         </div>
         {/* 分页 */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-4">
-            <button
-              onClick={() => setPage(Math.max(1, curPage - 1))}
-              disabled={curPage <= 1}
-              className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-white text-gray-700 disabled:opacity-40"
-            >
-              上一页
-            </button>
-            <PageJump page={curPage} totalPages={totalPages} onChange={setPage} />
-            <button
-              onClick={() => setPage(Math.min(totalPages, curPage + 1))}
-              disabled={curPage >= totalPages}
-              className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-white text-gray-700 disabled:opacity-40"
-            >
-              下一页
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">每页</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="h-[32px] px-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 outline-none"
+              >
+                {PAGE_SIZES.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+              <span className="text-sm text-gray-500">条</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(Math.max(1, curPage - 1))}
+                disabled={curPage <= 1}
+                className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-white text-gray-700 disabled:opacity-40"
+              >
+                上一页
+              </button>
+              <PageJump page={curPage} totalPages={totalPages} onChange={setPage} />
+              <button
+                onClick={() => setPage(Math.min(totalPages, curPage + 1))}
+                disabled={curPage >= totalPages}
+                className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-white text-gray-700 disabled:opacity-40"
+              >
+                下一页
+              </button>
+            </div>
           </div>
         )}
         </>

@@ -223,7 +223,7 @@ const CustomersPage = () => {
   const [tag, setTag] = useState('');
   const [tags, setTags] = useState<TagStat[]>([]);
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState(15);
 
   const [items, setItems] = useState<Customer[]>([]);
   const [total, setTotal] = useState(0);
@@ -1166,27 +1166,43 @@ const CustomersPage = () => {
             </div>
 
             {/* 分页 */}
-            <div className="flex items-center justify-end gap-[10px] px-4 py-3 bg-white border-t border-[#E4E7EC] rounded-b-[10px]">
-              <span className="text-[13px] text-[#5B6773]">
-                共 {total} 条
-              </span>
-              <button
-                type="button"
-                onClick={handlePrevPage}
-                disabled={page <= 1}
-                className="px-3 py-[5px] text-[13px] text-[#5B6773] border border-[#E4E7EC] rounded-md bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F7F9FA] transition-colors"
-              >
-                上一页
-              </button>
-              <PageJump page={page} totalPages={totalPages} onChange={setPage} />
-              <button
-                type="button"
-                onClick={handleNextPage}
-                disabled={page >= totalPages}
-                className="px-3 py-[5px] text-[13px] text-[#5B6773] border border-[#E4E7EC] rounded-md bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F7F9FA] transition-colors"
-              >
-                下一页
-              </button>
+            <div className="flex flex-wrap items-center justify-between gap-[10px] px-4 py-3 bg-white border-t border-[#E4E7EC] rounded-b-[10px]">
+              <div className="flex items-center gap-2">
+                <span className="text-[13px] text-[#98A2B3]">每页</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="h-[30px] px-2 rounded-md border border-[#E4E7EC] bg-white text-[13px] text-[#1D2733] outline-none focus:border-primary"
+                >
+                  <option value={15}>15</option>
+                  <option value={30}>30</option>
+                  <option value={100}>100</option>
+                </select>
+                <span className="text-[13px] text-[#98A2B3]">条</span>
+                <span className="text-[13px] text-[#5B6773] ml-2">共 {total} 条</span>
+              </div>
+              <div className="flex items-center gap-[10px]">
+                <button
+                  type="button"
+                  onClick={handlePrevPage}
+                  disabled={page <= 1}
+                  className="px-3 py-[5px] text-[13px] text-[#5B6773] border border-[#E4E7EC] rounded-md bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F7F9FA] transition-colors"
+                >
+                  上一页
+                </button>
+                <PageJump page={page} totalPages={totalPages} onChange={setPage} />
+                <button
+                  type="button"
+                  onClick={handleNextPage}
+                  disabled={page >= totalPages}
+                  className="px-3 py-[5px] text-[13px] text-[#5B6773] border border-[#E4E7EC] rounded-md bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F7F9FA] transition-colors"
+                >
+                  下一页
+                </button>
+              </div>
             </div>
           </>
         )}
