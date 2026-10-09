@@ -185,6 +185,9 @@ export function CustomerDetailDrawer({
     (a, b) => new Date(b.followAt).getTime() - new Date(a.followAt).getTime()
   );
 
+  // 未指定客户时不渲染（避免出现空抽屉壳）
+  if (!customerId) return null;
+
   return (
     <>
       {/* 遮罩 */}
