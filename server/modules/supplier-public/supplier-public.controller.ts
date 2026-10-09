@@ -82,6 +82,12 @@ export class SupplierPublicController {
     };
   }
 
+  /** 公开文件删除（免登录，密钥校验）：仅限表单页上传且未被商品引用的文件 */
+  @Post('delete-file')
+  async deleteFile(@Body() body: { key?: string; url?: string }): Promise<{ ok: boolean }> {
+    return this.supplierPublicService.deleteUploadedFile(body?.key || '', body?.url || '');
+  }
+
   /** 查询某密钥最近被驳回的记录（用于提交页回显理由） */
   @Get('rejected')
   async rejected(@Query('key') key?: string): Promise<RejectedRecord[]> {

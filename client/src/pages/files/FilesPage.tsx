@@ -148,7 +148,7 @@ export default function FilesPage() {
         <h1 className="text-xl font-bold flex items-center gap-2">
           <FolderOpen className="w-6 h-6" /> 文件管理
         </h1>
-        <p className="text-sm opacity-90 mt-1">搜索、预览、清理服务器文件 · 回收站保留7天 · 供应商表单页未提交的文件（7天后）自动进回收站</p>
+        <p className="text-sm opacity-90 mt-1">搜索、预览、清理服务器文件 · 回收站保留7天 · 供应商表单页未提交的文件将自动清理，不占用服务器空间</p>
         {usage && (
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-[13px]">
             <span className="inline-flex items-center gap-1.5">

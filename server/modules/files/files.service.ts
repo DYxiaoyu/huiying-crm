@@ -2,7 +2,6 @@ import {
   Injectable,
   Inject,
   Logger,
-  OnModuleInit,
 } from '@nestjs/common';
 import { DRIZZLE_DATABASE } from '@server/database/database.module';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
@@ -14,26 +13,23 @@ import * as path from 'path';
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/app/uploads';
 const PUBLIC_DIR = path.join(UPLOAD_DIR, 'public'); // 供应商表单页(join)公开上传落盘目录
 const TRASH_DIR = path.join(UPLOAD_DIR, '.trash');
-const ORPHAN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 表单页上传后 7 天未提交视为孤儿
-const CLEAN_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+// 数据库可能存 /uploads/ 或 /api/uploads/ 两种前缀（历史上做过 SQL 替换），都识别
+function toUploadName(p: string): string | null {
+  const s = (p || '').trim();
+  if (s.startsWith('/uploads/') || s.startsWith('/api/uploads/')) {
+    return path.basename(s);
+  }
+  return null;
+}
 
 @Injectable()
-export class FilesService implements OnModuleInit {
+export class FilesService {
   private readonly logger = new Logger(FilesService.name);
 
   constructor(@Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase) {}
 
-  onModuleInit() {
-    // 启动约 10 秒后先跑一次，之后每 24 小时清理一次
-    setTimeout(() => {
-      void this.cleanupOrphanFiles();
-    }, 10_000);
-    setInterval(() => {
-      void this.cleanupOrphanFiles();
-    }, CLEAN_INTERVAL_MS);
-  }
-
-  /** 收集所有被数据库引用的文件名（files JSON / images JSON / imageUrl 中的 /uploads/ 路径） */
+  /** 收集所有被数据库引用的文件名（files JSON / images JSON / imageUrl，兼容 /uploads/ 与 /api/uploads/ 前缀） */
   private async collectReferencedNames(): Promise<Set<string>> {
     const referenced = new Set<string>();
     const rows = await this.db
@@ -44,9 +40,8 @@ export class FilesService implements OnModuleInit {
       })
       .from(supplierProducts);
     for (const r of rows) {
-      if (r.imageUrl && r.imageUrl.startsWith('/uploads/')) {
-        referenced.add(path.basename(r.imageUrl));
-      }
+      const n = toUploadName(r.imageUrl || '');
+      if (n) referenced.add(n);
       for (const col of ['files', 'images'] as const) {
         const raw = r[col];
         if (!raw) continue;
@@ -54,13 +49,13 @@ export class FilesService implements OnModuleInit {
           const arr = JSON.parse(raw);
           if (!Array.isArray(arr)) continue;
           for (const item of arr) {
-            if (typeof item === 'string' && item.startsWith('/uploads/')) {
-              referenced.add(path.basename(item));
+            if (typeof item === 'string') {
+              const n = toUploadName(item);
+              if (n) referenced.add(n);
             } else if (item && typeof item === 'object') {
               const u = (item as { url?: string }).url;
-              if (typeof u === 'string' && u.startsWith('/uploads/')) {
-                referenced.add(path.basename(u));
-              }
+              const n = toUploadName(u || '');
+              if (n) referenced.add(n);
             }
           }
         } catch {
@@ -71,8 +66,8 @@ export class FilesService implements OnModuleInit {
     return referenced;
   }
 
-  /** 孤儿文件清理：仅清理供应商表单页(join)公开上传目录中，上传超 7 天且未被任何商品引用的文件（移入回收站）。
-   *  后台员工上传的文件（主目录）不受影响，由文件管理页手动管理。 */
+  /** 手动清理供应商表单页(join)公开上传目录中，未被任何商品引用的文件（移入回收站）。
+   *  仅手动触发（POST /api/files/cleanup），不自动调度。 */
   async cleanupOrphanFiles() {
     try {
       if (!fs.existsSync(PUBLIC_DIR)) return { cleaned: 0 };
@@ -85,7 +80,6 @@ export class FilesService implements OnModuleInit {
         try {
           const st = fs.statSync(fp);
           if (!st.isFile()) continue;
-          if (Date.now() - st.mtimeMs < ORPHAN_MAX_AGE_MS) continue;
           fs.mkdirSync(TRASH_DIR, { recursive: true });
           fs.renameSync(fp, path.join(TRASH_DIR, name));
           cleaned++;
@@ -94,11 +88,11 @@ export class FilesService implements OnModuleInit {
         }
       }
       if (cleaned > 0) {
-        this.logger.log(`表单页孤儿文件自动清理：${cleaned} 个未提交文件已移入回收站`);
+        this.logger.log(`表单页未引用文件手动清理：${cleaned} 个已移入回收站`);
       }
       return { cleaned };
     } catch (e) {
-      this.logger.error('孤儿文件清理失败', e as Error);
+      this.logger.error('清理失败', e as Error);
       return { cleaned: 0 };
     }
   }

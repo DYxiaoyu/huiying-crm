@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ShieldCheck,
   ArrowLeft,
@@ -174,6 +174,35 @@ const SupplierApplyPage = () => {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  /** 删除已上传但未提交的文件（密钥校验 + 引用保护，已挂商品的自动被拒绝） */
+  const deleteUploadedFiles = (urls: string[], key: string): void => {
+    const list = (urls || []).filter((u) => u && u.startsWith('/uploads/public/'));
+    if (!list.length || !key) return;
+    for (const url of list) {
+      fetch('/api/public/supplier/delete-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, url }),
+        keepalive: true,
+      }).catch(() => undefined);
+    }
+  };
+
+  // 离开页面 / 刷新时，尽力清理本次上传但未提交的文件（未提交不占用服务器空间）
+  useEffect(() => {
+    const clean = () => {
+      const urls = files.filter((f) => f.url).map((f) => f.url as string);
+      if (urls.length) deleteUploadedFiles(urls, keyValue.trim());
+    };
+    window.addEventListener('pagehide', clean);
+    window.addEventListener('beforeunload', clean);
+    return () => {
+      window.removeEventListener('pagehide', clean);
+      window.removeEventListener('beforeunload', clean);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files, keyValue]);
+
   const handleVerifyKey = async () => {
     const key = keyValue.trim();
     if (!key) {
@@ -316,11 +345,17 @@ const SupplierApplyPage = () => {
         files: files.length > 0 ? files : undefined,
       });
       if (res.ok) {
+        // 提交成功：文件已被商品引用（引用保护），前端清空待删列表，避免离开页面时误发删除请求
+        setFiles([]);
         setStep('success');
       } else {
+        // 提交失败：清理已上传未提交的文件
+        deleteUploadedFiles(files.filter((f) => f.url).map((f) => f.url as string), keyValue.trim());
         toast.error(res.message || '提交失败，请稍后重试');
       }
     } catch (error) {
+      // 网络/异常失败：同样清理已上传未提交的文件
+      deleteUploadedFiles(files.filter((f) => f.url).map((f) => f.url as string), keyValue.trim());
       logger.error('供应商提交失败', error as Error);
       toast.error('提交失败，请检查密钥和文件后重试');
     } finally {
@@ -612,7 +647,11 @@ const SupplierApplyPage = () => {
                           </a>
                           <button
                             type="button"
-                            onClick={() => setFiles((prev) => prev.filter((_, i) => i !== idx))}
+                            onClick={() => {
+                              const removed = files[idx];
+                              setFiles((prev) => prev.filter((_, i) => i !== idx));
+                              if (removed?.url) deleteUploadedFiles([removed.url], keyValue.trim());
+                            }}
                             className="size-7 rounded-lg text-[#98A2B3] hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors"
                           >
                             <X className="size-4" />

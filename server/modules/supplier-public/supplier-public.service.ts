@@ -240,4 +240,66 @@ export class SupplierPublicService {
     }
     return { ok: true, label: rows[0].label };
   }
+
+  /** 删除表单页(join)已上传但未提交的文件：密钥校验 + 仅限 /uploads/public/ + 引用保护（已挂商品的不可删） */
+  async deleteUploadedFile(keyValue: string, urlValue: string): Promise<{ ok: boolean }> {
+    const v = await this.verifyKey(keyValue);
+    if (!v.ok) throw new BadRequestException('合作密钥无效或已停用');
+    const url = (urlValue || '').trim();
+    if (!url.startsWith('/uploads/public/')) {
+      throw new BadRequestException('仅可删除供应商表单页上传的文件');
+    }
+    const name = path.basename(url);
+    const fp = path.join(UPLOAD_DIR, 'public', name);
+    if (!fs.existsSync(fp)) {
+      return { ok: true }; // 文件已不存在视为已删
+    }
+    // 引用保护：该文件已被任何商品引用则拒绝删除
+    const referenced = await this.collectReferencedFileNames();
+    if (referenced.has(name)) {
+      throw new BadRequestException('该文件已被商品引用，不可删除');
+    }
+    try {
+      fs.unlinkSync(fp);
+      return { ok: true };
+    } catch (e: any) {
+      throw new BadRequestException(`删除失败：${e.message || '未知错误'}`);
+    }
+  }
+
+  /** 收集所有被商品引用的文件名（files/images/imageUrl，兼容 /uploads/ 与 /api/uploads/ 前缀） */
+  private async collectReferencedFileNames(): Promise<Set<string>> {
+    const referenced = new Set<string>();
+    const rows = await this.db
+      .select({
+        files: supplierProducts.files,
+        images: supplierProducts.images,
+        imageUrl: supplierProducts.imageUrl,
+      })
+      .from(supplierProducts);
+    for (const r of rows) {
+      const add = (p: string) => {
+        const s = (p || '').trim();
+        if (s.startsWith('/uploads/') || s.startsWith('/api/uploads/')) {
+          referenced.add(path.basename(s));
+        }
+      };
+      add(r.imageUrl || '');
+      for (const col of ['files', 'images'] as const) {
+        const raw = r[col];
+        if (!raw) continue;
+        try {
+          const arr = JSON.parse(raw);
+          if (!Array.isArray(arr)) continue;
+          for (const item of arr) {
+            if (typeof item === 'string') add(item);
+            else if (item && typeof item === 'object') add((item as { url?: string }).url || '');
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    return referenced;
+  }
 }
