@@ -76,6 +76,28 @@ export class FilesController {
     }
   }
 
+  /** 搬家工具箱：文件清单 + 客户/供应商/商品/密钥 CSV + 说明文档（zip 一键下载） */
+  @Get('export')
+  async exportBundle(@Res() res: Response) {
+    try {
+      const bundle = await this.filesService.exportFullBundle();
+      const archive = archiver('zip', { zlib: { level: 6 } });
+      const date = new Date().toISOString().slice(0, 10);
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="crm-move-toolkit-${date}.zip"`);
+      archive.on('error', (e: Error) => {
+        try { res.destroy(); } catch (err) { /* ignore */ }
+      });
+      archive.pipe(res);
+      for (const f of bundle) {
+        archive.append(f.content, { name: f.name });
+      }
+      await archive.finalize();
+    } catch (e: any) {
+      throw new BadRequestException('导出失败：' + (e?.message || '未知错误'));
+    }
+  }
+
   /** 立即触发一次孤儿文件清理（上传超7天且未被引用→回收站） */
   @Post('cleanup')
   cleanup() {
