@@ -128,16 +128,22 @@ export class FilesController {
   }
 
   @Get('list')
-  list(@Query('trash') trash?: string) {
+  async list(@Query('trash') trash?: string) {
     ensureTrash();
     const dir = trash === '1' ? TRASH_DIR : UPLOAD_DIR;
+    const refMap = await this.filesService.getRefMap();
     const files = fs.readdirSync(dir)
       .filter(f => !f.startsWith('.'))
       .map(f => {
         try {
           const st = fs.statSync(path.join(dir, f));
           if (!st.isFile()) return null; // 只列文件，跳过子目录（如 public/）
-          return { name: f, size: st.size, mtime: Math.floor(st.mtimeMs) };
+          const refs = (refMap.get(f) || []).map(r => ({
+            productName: r.productName,
+            supplierName: r.supplierName,
+            role: r.role,
+          }));
+          return { name: f, size: st.size, mtime: Math.floor(st.mtimeMs), refs };
         } catch (e) { return null; }
       })
       .filter(Boolean)

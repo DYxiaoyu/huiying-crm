@@ -66,6 +66,42 @@ export class FilesService {
     return referenced;
   }
 
+  /** 构建 磁盘文件名 → 业务引用 映射（含引用角色：主图/商品图片/资料文件），供文件列表与搬家清单复用 */
+  async getRefMap(): Promise<Map<string, { productId: string; productName: string; supplierName: string; role: string }[]>> {
+    const rows = await this.db.select().from(supplierProducts);
+    const refMap = new Map<string, { productId: string; productName: string; supplierName: string; role: string }[]>();
+    const pushRef = (name: string, productId: string, productName: string, supplierName: string, role: string) => {
+      if (!name) return;
+      const list = refMap.get(name) || [];
+      list.push({ productId, productName, supplierName, role });
+      refMap.set(name, list);
+    };
+    for (const r of rows) {
+      const pid = r.id;
+      const pname = r.productName || '';
+      const sname = r.supplierName || '';
+      pushRef(toUploadName(r.imageUrl || ''), pid, pname, sname, '主图');
+      for (const col of ['files', 'images'] as const) {
+        const raw = r[col];
+        if (!raw) continue;
+        try {
+          const arr = JSON.parse(raw);
+          if (!Array.isArray(arr)) continue;
+          const role = col === 'files' ? '资料文件' : '商品图片';
+          for (const item of arr) {
+            if (typeof item === 'string') pushRef(toUploadName(item), pid, pname, sname, role);
+            else if (item && typeof item === 'object') {
+              pushRef(toUploadName((item as { url?: string }).url || ''), pid, pname, sname, role);
+            }
+          }
+        } catch {
+          /* 忽略坏 JSON */
+        }
+      }
+    }
+    return refMap;
+  }
+
   /** 手动清理供应商表单页(join)公开上传目录中，未被任何商品引用的文件（移入回收站）。
    *  仅手动触发（POST /api/files/cleanup），不自动调度。 */
   async cleanupOrphanFiles() {
@@ -147,43 +183,12 @@ export class FilesService {
   /** 生成「搬家工具箱」：文件清单 + 业务数据 CSV + 说明文档（zip 内容项） */
   async exportFullBundle(): Promise<{ name: string; content: string }[]> {
     const out: { name: string; content: string }[] = [];
-    const [products, keys] = await Promise.all([
+    const [products, keys, refMap] = await Promise.all([
       this.db.select().from(supplierProducts),
       this.db.select().from(supplierKeys),
+      this.getRefMap(),
     ]);
     const custRows = await this.db.select().from(customers);
-
-    // 1. 文件↔业务引用映射：磁盘文件名 → 引用信息列表
-    const refMap = new Map<string, { productId: string; productName: string; supplierName: string; role: string }[]>();
-    const pushRef = (name: string, productId: string, productName: string, supplierName: string, role: string) => {
-      if (!name) return;
-      const list = refMap.get(name) || [];
-      list.push({ productId, productName, supplierName, role });
-      refMap.set(name, list);
-    };
-    for (const r of products) {
-      const pid = r.id;
-      const pname = r.productName || '';
-      const sname = r.supplierName || '';
-      pushRef(toUploadName(r.imageUrl || ''), pid, pname, sname, '主图');
-      for (const col of ['files', 'images'] as const) {
-        const raw = r[col];
-        if (!raw) continue;
-        try {
-          const arr = JSON.parse(raw);
-          if (!Array.isArray(arr)) continue;
-          const role = col === 'files' ? '资料文件' : '商品图片';
-          for (const item of arr) {
-            if (typeof item === 'string') pushRef(toUploadName(item), pid, pname, sname, role);
-            else if (item && typeof item === 'object') {
-              pushRef(toUploadName((item as { url?: string }).url || ''), pid, pname, sname, role);
-            }
-          }
-        } catch {
-          /* 忽略坏 JSON */
-        }
-      }
-    }
 
     // 2. 扫描磁盘文件（uploads 主目录 + public 子目录 + 回收站）
     const diskFiles: { name: string; rel: string; size: number; mtime: number; inTrash: boolean }[] = [];

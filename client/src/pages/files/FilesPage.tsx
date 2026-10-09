@@ -2,10 +2,17 @@ import { useEffect, useState, useCallback } from 'react';
 import { FolderOpen, Trash2, Search, Download, RotateCcw, X } from 'lucide-react';
 import { axiosForBackend } from '@lark-apaas/client-toolkit/utils/getAxiosForBackend';
 
+interface FileRef {
+  productName: string;
+  supplierName: string;
+  role: string;
+}
+
 interface FileItem {
   name: string;
   size: number;
   mtime: number;
+  refs?: FileRef[];
 }
 
 function getType(name: string): 'image' | 'doc' | 'archive' | 'other' {
@@ -268,6 +275,27 @@ export default function FilesPage() {
                 <div className="p-2.5">
                   <div className="text-xs font-medium truncate" title={f.name}>{f.name}</div>
                   <div className="text-[11px] text-gray-400 mt-0.5">{fmtSize(f.size)}</div>
+                  {/* 用途标签：被哪个商品/供应商引用 */}
+                  <div className="mt-1.5 flex flex-col gap-0.5">
+                    {f.refs && f.refs.length > 0 ? (
+                      <>
+                        {f.refs.slice(0, 2).map((r, i) => (
+                          <div
+                            key={i}
+                            className="text-[11px] leading-snug text-amber-800 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5 truncate"
+                            title={`${r.role} · ${r.productName}（${r.supplierName}）`}
+                          >
+                            {r.role}·{r.productName}（{r.supplierName}）
+                          </div>
+                        ))}
+                        {f.refs.length > 2 && (
+                          <div className="text-[11px] text-gray-400">+{f.refs.length - 2} 处引用</div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-[11px] text-gray-400">未引用</div>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-1 px-2.5 pb-2.5 flex-wrap">
                   {!trash && (
