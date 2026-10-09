@@ -67,8 +67,12 @@ const STAGE_OPTIONS: { value: CustomerStage; label: string }[] = [
   { value: 'new', label: '新客户' },
   { value: 'contacted', label: '已联系' },
   { value: 'following', label: '跟进中' },
+  { value: 'quoted', label: '已报价' },
+  { value: 'negotiating', label: '谈判中' },
   { value: 'closed', label: '已成交' },
   { value: 'lost', label: '已流失' },
+  { value: 'invalid', label: '无效客户' },
+  { value: 'duplicate', label: '重复客户' },
 ];
 
 export function CustomerDialog({

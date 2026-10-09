@@ -15,6 +15,10 @@ const STAGE_BAR_COLORS: Record<CustomerStage, string> = {
   following: '#D97706',
   closed: '#059669',
   lost: '#DC2626',
+  quoted: '#0891B2',
+  negotiating: '#7C3AED',
+  invalid: '#6B7280',
+  duplicate: '#B45309',
 };
 
 const STAGE_TAG_STYLES: Record<CustomerStage, { bg: string; color: string }> = {
@@ -23,6 +27,10 @@ const STAGE_TAG_STYLES: Record<CustomerStage, { bg: string; color: string }> = {
   following: { bg: '#FDF3E3', color: '#D97706' },
   closed: { bg: '#E5F4EC', color: '#059669' },
   lost: { bg: '#FDECEC', color: '#DC2626' },
+  quoted: { bg: '#E0F2FE', color: '#0891B2' },
+  negotiating: { bg: '#F1E8FC', color: '#7C3AED' },
+  invalid: { bg: '#EFF1F4', color: '#6B7280' },
+  duplicate: { bg: '#FDF0E2', color: '#B45309' },
 };
 
 interface StatCardProps {
@@ -113,10 +121,15 @@ export default function DashboardPage() {
   const statCards: { label: string; value: number; color: string; stage?: CustomerStage }[] = [
     { label: '客户总数', value: stats.total, color: '#1D2733' },
     { label: '待跟进', value: stats.overdue, color: '#DC2626' },
-    { label: '跟进中', value: stats.following, color: '#D97706', stage: 'following' },
-    { label: '已成交', value: stats.closed, color: '#059669', stage: 'closed' },
     { label: '新客户', value: stats.newCustomers, color: '#64748B', stage: 'new' },
+    { label: '已联系', value: stageDistribution.find(s => s.stage === 'contacted')?.count ?? 0, color: '#2563EB', stage: 'contacted' },
+    { label: '跟进中', value: stats.following, color: '#D97706', stage: 'following' },
+    { label: '已报价', value: stats.quoted, color: '#0891B2', stage: 'quoted' },
+    { label: '谈判中', value: stats.negotiating, color: '#7C3AED', stage: 'negotiating' },
+    { label: '已成交', value: stats.closed, color: '#059669', stage: 'closed' },
     { label: '已流失', value: stats.lost, color: '#DC2626', stage: 'lost' },
+    { label: '无效', value: stats.invalid, color: '#6B7280', stage: 'invalid' },
+    { label: '重复', value: stats.duplicate, color: '#B45309', stage: 'duplicate' },
   ];
 
   const goToList = (stage?: CustomerStage) => {

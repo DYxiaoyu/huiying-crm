@@ -74,9 +74,19 @@ export class SupplierPublicController {
     if (!file) {
       throw new BadRequestException('未收到文件');
     }
+    // 修复 multer 中文文件名乱码：浏览器按 UTF-8 发送，multer 默认按 latin1 解码
+    let name = file.originalname || file.filename || 'file';
+    try {
+      if (/[^\x00-\x7f]/.test(name)) {
+        const fixed = Buffer.from(name, 'latin1').toString('utf8');
+        if (!fixed.includes('\uFFFD')) name = fixed;
+      }
+    } catch {
+      /* 保持原样 */
+    }
     return {
       url: '/uploads/public/' + file.filename,
-      name: file.originalname || file.filename || 'file',
+      name,
       size: file.size,
       mime: file.mimetype || 'application/octet-stream',
     };

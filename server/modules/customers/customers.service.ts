@@ -362,8 +362,12 @@ export class CustomersService {
       new: '新客户',
       contacted: '已联系',
       following: '跟进中',
+      quoted: '已报价',
+      negotiating: '谈判中',
       closed: '已成交',
       lost: '已流失',
+      invalid: '无效客户',
+      duplicate: '重复客户',
     };
 
     const escapeCsv = (value: string | null): string => {

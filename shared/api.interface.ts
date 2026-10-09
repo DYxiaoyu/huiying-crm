@@ -1,14 +1,18 @@
-export type CustomerStage = 'new' | 'contacted' | 'following' | 'closed' | 'lost';
+export type CustomerStage = 'new' | 'contacted' | 'following' | 'quoted' | 'negotiating' | 'closed' | 'lost' | 'invalid' | 'duplicate';
 
 export const STAGE_NAMES: Record<CustomerStage, string> = {
   new: '新客户',
   contacted: '已联系',
   following: '跟进中',
+  quoted: '已报价',
+  negotiating: '谈判中',
   closed: '已成交',
   lost: '已流失',
+  invalid: '无效客户',
+  duplicate: '重复客户',
 };
 
-export const STAGE_ORDER: CustomerStage[] = ['new', 'contacted', 'following', 'closed', 'lost'];
+export const STAGE_ORDER: CustomerStage[] = ['new', 'contacted', 'following', 'quoted', 'negotiating', 'closed', 'lost', 'invalid', 'duplicate'];
 
 export type EmployeeRole = 'admin' | 'employee';
 
@@ -122,9 +126,13 @@ export interface DashboardStats {
   total: number;
   overdue: number;
   following: number;
+  quoted: number;
+  negotiating: number;
   closed: number;
   newCustomers: number;
   lost: number;
+  invalid: number;
+  duplicate: number;
 }
 
 export interface StageDistribution {

@@ -67,8 +67,12 @@ const STAGE_NAME_TO_VALUE: Record<string, CustomerStage> = {
   新客户: 'new',
   已联系: 'contacted',
   跟进中: 'following',
+  已报价: 'quoted',
+  谈判中: 'negotiating',
   已成交: 'closed',
   已流失: 'lost',
+  无效客户: 'invalid',
+  重复客户: 'duplicate',
 };
 
 const STAGE_OPTIONS: { value: CustomerStage | ''; label: string }[] = [
@@ -76,8 +80,12 @@ const STAGE_OPTIONS: { value: CustomerStage | ''; label: string }[] = [
   { value: 'new', label: '新客户' },
   { value: 'contacted', label: '已联系' },
   { value: 'following', label: '跟进中' },
+  { value: 'quoted', label: '已报价' },
+  { value: 'negotiating', label: '谈判中' },
   { value: 'closed', label: '已成交' },
   { value: 'lost', label: '已流失' },
+  { value: 'invalid', label: '无效客户' },
+  { value: 'duplicate', label: '重复客户' },
 ];
 
 const SORT_OPTIONS: { value: string; label: string }[] = [
@@ -112,6 +120,18 @@ const STAGE_BADGE_MAP: Record<CustomerStage, StageBadgeConfig> = {
     bgColor: 'bg-[#FDF3E3]',
     textColor: 'text-[#D97706]',
   },
+  quoted: {
+    label: '已报价',
+    dotColor: 'bg-[#0891B2]',
+    bgColor: 'bg-[#E3F5FA]',
+    textColor: 'text-[#0891B2]',
+  },
+  negotiating: {
+    label: '谈判中',
+    dotColor: 'bg-[#7C3AED]',
+    bgColor: 'bg-[#F0EAFE]',
+    textColor: 'text-[#7C3AED]',
+  },
   closed: {
     label: '已成交',
     dotColor: 'bg-[#059669]',
@@ -123,6 +143,18 @@ const STAGE_BADGE_MAP: Record<CustomerStage, StageBadgeConfig> = {
     dotColor: 'bg-[#DC2626]',
     bgColor: 'bg-[#FDECEC]',
     textColor: 'text-[#DC2626]',
+  },
+  invalid: {
+    label: '无效客户',
+    dotColor: 'bg-[#6B7280]',
+    bgColor: 'bg-[#F3F4F6]',
+    textColor: 'text-[#6B7280]',
+  },
+  duplicate: {
+    label: '重复客户',
+    dotColor: 'bg-[#B45309]',
+    bgColor: 'bg-[#FDF1E7]',
+    textColor: 'text-[#B45309]',
   },
 };
 

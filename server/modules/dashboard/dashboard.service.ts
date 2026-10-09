@@ -78,9 +78,13 @@ export class DashboardService {
       total,
       overdue,
       following: stageCounts.following,
+      quoted: stageCounts.quoted || 0,
+      negotiating: stageCounts.negotiating || 0,
       closed: stageCounts.closed,
       newCustomers: stageCounts.new,
       lost: stageCounts.lost,
+      invalid: stageCounts.invalid || 0,
+      duplicate: stageCounts.duplicate || 0,
     };
 
     const stageDistribution: StageDistribution[] = STAGE_ORDER.map((stage: CustomerStage) => ({

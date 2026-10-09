@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button';
 import * as suppliersApi from '@/api/suppliers';
 import type {
   CreateSupplierProductDto,
+  SupplierFile,
   SupplierProduct,
   UpdateSupplierProductDto,
 } from '@shared/api.interface';
