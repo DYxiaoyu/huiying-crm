@@ -32,6 +32,8 @@ const t = {
     success: 'Заявка успешно отправлена! Мы свяжемся с вами в ближайшее время.',
     errName: 'Укажите имя',
     errPhone: 'Укажите корректный телефон',
+    errRequirement: 'Опишите вашу потребность',
+    required: 'обязательно',
     lang: 'Язык',
   },
   zh: {
@@ -62,6 +64,8 @@ const t = {
     success: '提交成功！我们会尽快与您联系。',
     errName: '请填写姓名',
     errPhone: '请填写正确的手机号',
+    errRequirement: '请填写需求描述',
+    required: '必填',
     lang: '语言',
   },
   en: {
@@ -92,6 +96,8 @@ const t = {
     success: 'Submitted successfully! We will contact you soon.',
     errName: 'Please enter your name',
     errPhone: 'Please enter a valid phone number',
+    errRequirement: 'Please describe your requirement',
+    required: 'required',
     lang: 'Language',
   },
 };
@@ -113,6 +119,7 @@ export default function LeadFormPage() {
     e.preventDefault();
     if (!form.name.trim()) return toast.error(T.errName);
     if (!/^\+?[0-9\s\-]{7,20}$/.test(form.phone.replace(/\s/g, ''))) return toast.error(T.errPhone);
+    if (!form.requirement.trim()) return toast.error(T.errRequirement);
     setLoading(true);
     try {
       const res = await fetch('/api/lead', {
@@ -178,7 +185,7 @@ export default function LeadFormPage() {
             </div>
             <Field label={T.product}><input value={form.product} onChange={set('product')} placeholder={T.productPh} style={inp} /></Field>
             <Field label={T.budget}><input value={form.budget} onChange={set('budget')} placeholder={T.budgetPh} style={inp} /></Field>
-            <Field label={T.requirement}><textarea value={form.requirement} onChange={set('requirement')} placeholder={T.requirementPh} style={{ ...inp, minHeight: 90, resize: 'vertical' }} /></Field>
+            <Field label={T.requirement} required requiredText={T.required}><textarea value={form.requirement} onChange={set('requirement')} placeholder={T.requirementPh} style={{ ...inp, minHeight: 90, resize: 'vertical' }} /></Field>
 
             <button type="submit" disabled={loading}
               style={{ marginTop: 8, padding: '14px', borderRadius: 10, border: 'none', background: '#d97706', color: '#fff', fontSize: 15, fontWeight: 600, cursor: loading?'wait':'pointer' }}>
@@ -191,11 +198,15 @@ export default function LeadFormPage() {
   );
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, required, requiredText, children }: { label: string; required?: boolean; requiredText?: string; children: React.ReactNode }) {
   return (
     <label style={{ display: 'block' }}>
       <span style={{ fontSize: 13, color: '#374151', marginBottom: 6, display: 'block' }}>
-        {label} {required && <span style={{ color: '#ef4444' }}>*</span>}
+        {label} {required && (
+          <span style={{ color: '#ef4444', fontSize: 17, fontWeight: 700, lineHeight: 1 }}>
+            *<em style={{ fontStyle: 'normal', fontSize: 12, fontWeight: 500, marginLeft: 4 }}>（{requiredText}）</em>
+          </span>
+        )}
       </span>
       {children}
     </label>

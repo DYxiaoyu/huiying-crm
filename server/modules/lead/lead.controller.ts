@@ -28,8 +28,10 @@ export class LeadController {
   async submit(@Body() dto: LeadDto): Promise<{ ok: boolean }> {
     const name = (dto.name || '').trim();
     const phone = (dto.phone || '').trim();
+    const requirement = (dto.requirement || '').trim();
     if (!name) throw new BadRequestException('姓名不能为空');
     if (!phone) throw new BadRequestException('手机号不能为空');
+    if (!requirement) throw new BadRequestException('需求描述不能为空');
     // 通用手机号校验：+ 和数字，7~20位
     if (!/^\+?[0-9\s\-]{7,20}$/.test(phone.replace(/\s/g, ''))) {
       throw new BadRequestException('手机号格式不正确');
