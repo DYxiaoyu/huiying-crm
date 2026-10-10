@@ -212,6 +212,13 @@ function formatDateTime(value: string | null | undefined): string {
   return `${y}-${m}-${d} ${h}:${min}`;
 }
 
+/** 本地时区"今天结束"（23:59:59），用于下次跟进到期判断 */
+function endOfToday(): Date {
+  const d = new Date();
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
 const CustomersPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -227,6 +234,7 @@ const CustomersPage = () => {
   const [tags, setTags] = useState<TagStat[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [dueSoon, setDueSoon] = useState(searchParams.get('dueSoon') === '1');
 
   const [items, setItems] = useState<Customer[]>([]);
   const [total, setTotal] = useState(0);
@@ -280,6 +288,7 @@ const CustomersPage = () => {
         favoriteOnly: favoriteOnly || undefined,
         tag: tag || undefined,
         timeRange: timeRange || undefined,
+        dueSoon: dueSoon || undefined,
       });
       setItems(res.items);
       setTotal(res.total);
@@ -288,7 +297,7 @@ const CustomersPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, stage, sortBy, sortOrder, favoriteOnly, tag, timeRange]);
+  }, [page, pageSize, keyword, stage, sortBy, sortOrder, favoriteOnly, tag, timeRange, dueSoon]);
 
   useEffect(() => {
     void fetchList();
@@ -520,14 +529,14 @@ const CustomersPage = () => {
     });
   };
 
-  // 图片上传（占位：按钮已就位，上传能力待接入）
+  // 行内"上传/预览图片"：打开详情抽屉（附件区已支持上传/预览/下载）
   const handleUploadImage = (customer: Customer) => {
-    toast.info(`「${customer.name}」的图片上传功能即将上线`);
+    setDrawerId(customer.id);
   };
 
-  // 图片预览（占位）
+  // 图片预览（打开详情抽屉附件区）
   const handlePreviewImage = (customer: Customer) => {
-    toast.info(`「${customer.name}」暂无已上传图片`);
+    setDrawerId(customer.id);
   };
 
   const handleExportBackup = () => {
@@ -788,6 +797,20 @@ const CustomersPage = () => {
           />
           <span>只看收藏</span>
         </button>
+
+        {/* 跟进到期 */}
+        <button
+          type="button"
+          onClick={() => setDueSoon((v) => !v)}
+          className={`shrink-0 inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border text-sm font-medium transition-all ${
+            dueSoon
+              ? 'border-[#DC2626] bg-[#FDECEC] text-[#DC2626]'
+              : 'border-[#E4E7EC] bg-white text-[#5B6773] hover:bg-[#F7F9FA]'
+          }`}
+        >
+          <span className={`size-2 rounded-full ${dueSoon ? 'bg-[#DC2626]' : 'bg-[#98A2B3]'}`} />
+          <span>跟进到期</span>
+        </button>
       </div>
 
       {/* 列表区 - 卡片式表格 */}
@@ -900,10 +923,17 @@ const CustomersPage = () => {
                 {items.map((customer: Customer) => {
                   const stageBadge = STAGE_BADGE_MAP[customer.stage];
                   const isSelected = selectedIds.includes(customer.id);
+                  const followDue = !!customer.nextFollowAt && new Date(customer.nextFollowAt).getTime() <= endOfToday().getTime();
                   return (
                     <TableRow
                       key={customer.id}
-                      className={`border-b border-[#EAECF0] ${isSelected ? 'bg-[#F0F9F6]' : 'hover:bg-[#F7F9FA]'}`}
+                      className={`border-b border-[#EAECF0] ${
+                        followDue
+                          ? 'bg-[#FFF4F4] hover:bg-[#FDE9E9]'
+                          : isSelected
+                            ? 'bg-[#F0F9F6]'
+                            : 'hover:bg-[#F7F9FA]'
+                      }`}
                     >
                       <TableCell className="px-4 py-3">
                         <button
@@ -938,7 +968,13 @@ const CustomersPage = () => {
                           >
                             {customer.name}
                           </button>
-                          {customer.isOverdue && (
+                          {followDue && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FDECEC] text-[#DC2626] text-[11px] font-medium">
+                              <span className="size-1.5 rounded-full bg-[#DC2626]" />
+                              跟进到期
+                            </span>
+                          )}
+                          {customer.isOverdue && !followDue && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FDECEC] text-[#DC2626] text-[11px] font-medium">
                               <span className="size-1.5 rounded-full bg-[#DC2626]" />
                               待跟进
@@ -1059,10 +1095,17 @@ const CustomersPage = () => {
               {items.map((customer: Customer) => {
                 const stageBadge = STAGE_BADGE_MAP[customer.stage];
                 const isSelected = selectedIds.includes(customer.id);
+                const followDue = !!customer.nextFollowAt && new Date(customer.nextFollowAt).getTime() <= endOfToday().getTime();
                 return (
                   <div
                     key={customer.id}
-                    className={`p-4 border-b border-[#EAECF0] last:border-b-0 ${isSelected ? 'bg-[#F0F9F6]' : 'hover:bg-[#F7F9FA]'} transition-colors`}
+                    className={`p-4 border-b border-[#EAECF0] last:border-b-0 ${
+                      followDue
+                        ? 'bg-[#FFF4F4]'
+                        : isSelected
+                          ? 'bg-[#F0F9F6]'
+                          : 'hover:bg-[#F7F9FA]'
+                    } transition-colors`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
@@ -1104,7 +1147,13 @@ const CustomersPage = () => {
                             />
                             {stageBadge.label}
                           </span>
-                          {customer.isOverdue && (
+                          {followDue && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FDECEC] text-[#DC2626] text-[11px] font-medium">
+                              <span className="size-1.5 rounded-full bg-[#DC2626]" />
+                              跟进到期
+                            </span>
+                          )}
+                          {customer.isOverdue && !followDue && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FDECEC] text-[#DC2626] text-[11px] font-medium">
                               <span className="size-1.5 rounded-full bg-[#DC2626]" />
                               待跟进

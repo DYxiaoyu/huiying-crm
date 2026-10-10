@@ -8,8 +8,16 @@ import {
   Param,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
   Res,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { randomBytes } from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 import type { Response } from 'express';
 import { CustomersService } from './customers.service';
 import { EmployeeAuthGuard } from '@server/modules/auth/employee-auth.guard';
@@ -48,6 +56,7 @@ export class CustomersController {
     @Query('favoriteOnly') favoriteOnly?: string,
     @Query('tag') tag?: string,
     @Query('timeRange') timeRange?: string,
+    @Query('dueSoon') dueSoon?: string,
   ): Promise<CustomerListResponse> {
     const pageNum = page ? parseInt(page, 10) : 1;
     const pageSizeNum = pageSize ? parseInt(pageSize, 10) : 10;
@@ -71,6 +80,7 @@ export class CustomersController {
         favoriteOnly: favoriteOnly === 'true',
         tag: tag && tag !== '' ? tag : undefined,
         timeRange: safeTimeRange,
+        dueSoon: dueSoon === '1' || dueSoon === 'true',
       },
       employee.id,
       employee.role === 'admin',
@@ -237,6 +247,41 @@ export class CustomersController {
     @Param('id') id: string,
   ): Promise<Customer> {
     return this.customersService.detail(id, employee.id, employee.role === 'admin');
+  }
+
+  @Post(':id/attachments')
+  @UseInterceptors(FileInterceptor('file', {
+    storage: diskStorage({
+      destination: (req, file, cb) => {
+        const dir = process.env.UPLOAD_DIR || '/app/uploads';
+        try { fs.mkdirSync(dir, { recursive: true }); } catch (e) {}
+        cb(null, dir);
+      },
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname || '').toLowerCase().slice(0, 12);
+        cb(null, Date.now() + '-' + randomBytes(6).toString('hex') + ext);
+      },
+    }),
+    limits: { fileSize: 50 * 1024 * 1024 },
+  }))
+  async uploadAttachment(
+    @CurrentEmployee() employee: { id: string; role?: string },
+    @Param('id') id: string,
+    @UploadedFile() file?: { originalname?: string; filename?: string; size?: number; mimetype?: string },
+  ): Promise<Customer> {
+    if (!file) {
+      throw new BadRequestException('未收到文件（单个附件最大 50MB）');
+    }
+    return this.customersService.addAttachment(id, file, employee.id, employee.role === 'admin');
+  }
+
+  @Delete(':id/attachments')
+  async removeAttachment(
+    @CurrentEmployee() employee: { id: string; role?: string },
+    @Param('id') id: string,
+    @Body('url') url: string,
+  ): Promise<Customer> {
+    return this.customersService.removeAttachment(id, url, employee.id, employee.role === 'admin');
   }
 
   @Post()

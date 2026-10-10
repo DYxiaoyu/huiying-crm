@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { X, Phone, Trash2, Star } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { X, Phone, Trash2, Star, Paperclip, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@lark-apaas/client-toolkit/logger';
 import { useForm } from 'react-hook-form';
@@ -181,6 +181,56 @@ export function CustomerDetailDrawer({
     }
   };
 
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleUploadAttachment = async (file?: File | null) => {
+    if (!file || !customer) return;
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('单个附件最大 50MB');
+      return;
+    }
+    setUploading(true);
+    try {
+      const updated = await customersApi.uploadAttachment(customer.id, file);
+      setCustomer(updated);
+      onSuccess?.();
+      toast.success('附件已上传');
+    } catch (err) {
+      logger.error('上传附件失败', err as Error);
+      toast.error('附件上传失败，请重试');
+    } finally {
+      setUploading(false);
+      if (attachmentInputRef.current) attachmentInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveAttachment = async (url: string) => {
+    if (!customer) return;
+    const confirmed = await showConfirm('确定移除该附件吗？（磁盘文件仍保留在文件管理）');
+    if (!confirmed) return;
+    try {
+      const updated = await customersApi.removeAttachment(customer.id, url);
+      setCustomer(updated);
+      onSuccess?.();
+      toast.success('附件已移除');
+    } catch (err) {
+      logger.error('移除附件失败', err as Error);
+    }
+  };
+
+  const isImage = (type: string, name: string): boolean => {
+    return /^image\//.test(type) || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name);
+  };
+
+  /** 附件是否到期标红（下次跟进在今天之内/已过期） */
+  const nextFollowDue = (): boolean => {
+    if (!customer?.nextFollowAt) return false;
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+    return new Date(customer.nextFollowAt).getTime() <= end.getTime();
+  };
+
   const sortedFollowUps = [...followUps].sort(
     (a, b) => new Date(b.followAt).getTime() - new Date(a.followAt).getTime()
   );
@@ -291,6 +341,7 @@ export function CustomerDetailDrawer({
                     ['来源', customer.source || '-'],
                     ['成交金额', customer.dealAmount ? `¥${Number(customer.dealAmount).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}` : '-'],
                     ['预计成交金额', customer.expectedAmount ? `¥${Number(customer.expectedAmount).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}` : '-'],
+                    ['下次跟进', customer.nextFollowAt ? formatDateTime(customer.nextFollowAt) : '-'],
                     ['备注', customer.remark || '-'],
                     ['最近跟进', formatDateTime(customer.lastFollowAt)],
                     ['创建时间', formatDateTime(customer.createdAt)],
@@ -302,8 +353,19 @@ export function CustomerDetailDrawer({
                       <div className="text-[13px] text-[#98A2B3] shrink-0 w-16">
                         {label}
                       </div>
-                      <div className="flex-1 text-[14px] text-[#1D2733] break-all whitespace-pre-wrap">
+                      <div
+                        className={`flex-1 text-[14px] break-all whitespace-pre-wrap ${
+                          label === '下次跟进' && nextFollowDue()
+                            ? 'text-[#DC2626] font-medium'
+                            : 'text-[#1D2733]'
+                        }`}
+                      >
                         {value}
+                        {label === '下次跟进' && nextFollowDue() && (
+                          <span className="ml-2 text-[11px] font-medium px-1.5 py-0.5 rounded bg-red-50 text-[#DC2626]">
+                            已到期
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -341,6 +403,92 @@ export function CustomerDetailDrawer({
                     {deleting ? '删除中...' : '删除'}
                   </Button>
                 </div>
+              </div>
+
+              {/* 客户附件（报价单/聊天截图等） */}
+              <div className="rounded-xl border border-[#E4E7EC] bg-white shadow-sm p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-[14px] font-semibold text-[#1D2733] flex items-center gap-1.5">
+                    <Paperclip className="size-4 text-[#5B6773]" />
+                    附件
+                    <span className="text-[12px] font-normal text-[#98A2B3]">
+                      （{customer.attachments?.length ?? 0} 个）
+                    </span>
+                  </div>
+                  <input
+                    ref={attachmentInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => void handleUploadAttachment(e.target.files?.[0])}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={uploading}
+                    onClick={() => attachmentInputRef.current?.click()}
+                  >
+                    {uploading ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Paperclip className="size-3.5" />
+                    )}
+                    {uploading ? '上传中...' : '上传附件'}
+                  </Button>
+                </div>
+
+                {customer.attachments && customer.attachments.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {customer.attachments.map((att) => (
+                      <div
+                        key={att.url}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg border border-[#E4E7EC] bg-[#F9FAFB]"
+                      >
+                        {isImage(att.type, att.name) ? (
+                          <img
+                            src={att.url}
+                            alt={att.name}
+                            className="size-10 rounded-md object-cover shrink-0 border border-[#E4E7EC]"
+                          />
+                        ) : (
+                          <div className="size-10 rounded-md bg-[#E5F4EC] text-[#0E7C6B] flex items-center justify-center shrink-0">
+                            <Paperclip className="size-4" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[13px] text-[#1D2733] truncate">
+                            {att.name}
+                          </div>
+                          <div className="text-[11px] text-[#98A2B3]">
+                            {att.size > 0 ? `${(att.size / 1024 / 1024).toFixed(1)}MB` : ''}
+                            {att.uploadedAt ? ` · ${formatDateTime(att.uploadedAt)}` : ''}
+                          </div>
+                        </div>
+                        <a
+                          href={att.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1.5 rounded-md text-[#5B6773] hover:bg-[#E4E7EC] transition-colors"
+                          title="查看/下载"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Download className="size-4" />
+                        </a>
+                        <button
+                          type="button"
+                          className="p-1.5 rounded-md text-[#98A2B3] hover:bg-[#FDECEC] hover:text-[#DC2626] transition-colors"
+                          title="移除附件"
+                          onClick={() => void handleRemoveAttachment(att.url)}
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-[12px] text-[#98A2B3]">
+                    暂无附件，可上传报价单、聊天截图等（单个≤50MB）
+                  </div>
+                )}
               </div>
 
               {/* 添加跟进 */}

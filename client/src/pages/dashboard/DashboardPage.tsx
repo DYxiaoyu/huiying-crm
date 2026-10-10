@@ -123,11 +123,12 @@ export default function DashboardPage() {
     1,
   );
 
-  const statCards: { label: string; value: number | string; color: string; stage?: CustomerStage }[] = [
+  const statCards: { label: string; value: number | string; color: string; stage?: CustomerStage; to?: string }[] = [
     { label: '总成交额', value: formatMoney(stats.totalDealAmount), color: '#059669' },
     { label: '总预计成交额', value: formatMoney(stats.totalExpectedAmount), color: '#0891B2' },
     { label: '客户总数', value: stats.total, color: '#1D2733' },
     { label: '待跟进', value: stats.overdue, color: '#DC2626' },
+    { label: '今日待跟进', value: stats.todayFollowUp, color: '#EA580C', to: '/customers?dueSoon=1' },
     { label: '新客户', value: stats.newCustomers, color: '#64748B', stage: 'new' },
     { label: '已联系', value: stageDistribution.find(s => s.stage === 'contacted')?.count ?? 0, color: '#2563EB', stage: 'contacted' },
     { label: '跟进中', value: stats.following, color: '#D97706', stage: 'following' },
@@ -139,7 +140,11 @@ export default function DashboardPage() {
     { label: '重复', value: stats.duplicate, color: '#B45309', stage: 'duplicate' },
   ];
 
-  const goToList = (stage?: CustomerStage) => {
+  const goToList = (stage?: CustomerStage, to?: string) => {
+    if (to) {
+      navigate(to);
+      return;
+    }
     navigate(stage ? `/customers?stage=${stage}` : '/customers');
   };
 
@@ -159,7 +164,7 @@ export default function DashboardPage() {
             label={card.label}
             value={card.value}
             color={card.color}
-            onClick={() => goToList(card.stage)}
+            onClick={() => goToList(card.stage, card.to)}
           />
         ))}
       </div>

@@ -23,6 +23,19 @@ export interface Employee {
   role: EmployeeRole;
 }
 
+export interface CustomerAttachment {
+  /** 磁盘路径 /uploads/xxx */
+  url: string;
+  /** 原始文件名 */
+  name: string;
+  /** 字节大小 */
+  size: number;
+  /** MIME 类型 */
+  type: string;
+  /** 上传时间 ISO */
+  uploadedAt: string;
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -42,6 +55,10 @@ export interface Customer {
   dealAmount: number | null;
   /** 预计成交金额（元） */
   expectedAmount: number | null;
+  /** 下次跟进时间 ISO（可空） */
+  nextFollowAt: string | null;
+  /** 客户附件（报价单/截图等） */
+  attachments: CustomerAttachment[];
 }
 
 export interface FollowUp {
@@ -67,6 +84,8 @@ export interface CustomerListQuery {
   favoriteOnly?: boolean;
   tag?: string;
   timeRange?: TimeRange;
+  /** 只显示"下次跟进已到期"的客户 */
+  dueSoon?: boolean;
 }
 
 export interface CustomerListResponse {
@@ -91,6 +110,8 @@ export interface CreateCustomerDto {
   tags?: string[];
   dealAmount?: number;
   expectedAmount?: number;
+  /** 下次跟进时间 ISO（可空） */
+  nextFollowAt?: string | null;
 }
 
 export interface UpdateCustomerDto {
@@ -104,6 +125,9 @@ export interface UpdateCustomerDto {
   tags?: string[];
   dealAmount?: number | null;
   expectedAmount?: number | null;
+  nextFollowAt?: string | null;
+  /** 整组替换附件列表 */
+  attachments?: CustomerAttachment[];
 }
 
 export interface BatchUpdateStageDto {
@@ -175,6 +199,8 @@ export interface DashboardStats {
   totalDealAmount: number;
   /** 总预计成交金额（元） */
   totalExpectedAmount: number;
+  /** 今日待跟进（下次跟进时间在今天之内/已到期） */
+  todayFollowUp: number;
 }
 
 export interface StageDistribution {

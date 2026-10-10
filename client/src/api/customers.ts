@@ -227,6 +227,36 @@ export async function getTags(): Promise<TagStat[]> {
   }
 }
 
+/** 上传客户附件（报价单/截图等，单个≤50MB） */
+export async function uploadAttachment(id: string, file: File): Promise<Customer> {
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const { data } = await axiosForBackend.post<Customer>(
+      `/api/customers/${id}/attachments`,
+      fd,
+    );
+    return data;
+  } catch (error) {
+    logger.error(`上传客户附件失败: ${id}`, error as Error);
+    throw error;
+  }
+}
+
+/** 移除客户附件引用 */
+export async function removeAttachment(id: string, url: string): Promise<Customer> {
+  try {
+    const { data } = await axiosForBackend.delete<Customer>(
+      `/api/customers/${id}/attachments`,
+      { data: { url } },
+    );
+    return data;
+  } catch (error) {
+    logger.error(`移除客户附件失败: ${id}`, error as Error);
+    throw error;
+  }
+}
+
 /** 管理员将客户分配给指定员工（公海客户分配/转交） */
 export async function assignCustomer(
   id: string,

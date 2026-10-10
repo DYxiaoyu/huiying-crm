@@ -18,12 +18,24 @@ import {
   type Employee,
 } from '@shared/api.interface';
 
+/** 上海时区"今天结束"时刻（业务日 23:59:59，用于下次跟进到期判断） */
+function endOfTodayLocal(): Date {
+  const offsetMs = 8 * 60 * 60 * 1000;
+  const now = new Date();
+  const shifted = new Date(now.getTime() + offsetMs);
+  const endUtc = new Date(
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(), 23, 59, 59, 999),
+  );
+  return new Date(endUtc.getTime() - offsetMs);
+}
+
 interface CustomerBasic {
   id: string;
   stage: string;
   createdAt: Date;
   dealAmount: string | number | null;
   expectedAmount: string | number | null;
+  nextFollowAt: Date | null;
 }
 
 interface LatestFollowRow {
@@ -61,6 +73,7 @@ export class DashboardService {
         createdAt: customers.createdAt,
         dealAmount: customers.dealAmount,
         expectedAmount: customers.expectedAmount,
+        nextFollowAt: customers.nextFollowAt,
       })
       .from(customers)
       .where(isAdmin ? undefined : eq(customers.employeeId, employeeId));
@@ -81,11 +94,16 @@ export class DashboardService {
 
     let totalDealAmount: number = 0;
     let totalExpectedAmount: number = 0;
+    let todayFollowUp: number = 0;
+    const endOfToday = endOfTodayLocal();
     for (const c of allCustomers) {
       const deal = c.dealAmount === null || c.dealAmount === undefined ? 0 : Number(c.dealAmount);
       const expected = c.expectedAmount === null || c.expectedAmount === undefined ? 0 : Number(c.expectedAmount);
       totalDealAmount += deal;
       totalExpectedAmount += expected;
+      if (c.nextFollowAt && c.nextFollowAt.getTime() <= endOfToday.getTime()) {
+        todayFollowUp += 1;
+      }
     }
 
     const stats: DashboardStats = {
@@ -101,6 +119,7 @@ export class DashboardService {
       duplicate: stageCounts.duplicate || 0,
       totalDealAmount,
       totalExpectedAmount,
+      todayFollowUp,
     };
 
     const stageDistribution: StageDistribution[] = STAGE_ORDER.map((stage: CustomerStage) => ({

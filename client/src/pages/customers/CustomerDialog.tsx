@@ -61,9 +61,18 @@ const customerSchema = z.object({
     (v) => (v === '' || v === undefined || v === null ? undefined : Number(v)),
     z.number().optional(),
   ),
+  nextFollowAt: z.string().optional(),
 });
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
+
+/** ISO → datetime-local（本地时区） */
+function toLocalDatetimeInput(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 interface CustomerDialogProps {
   open: boolean;
@@ -181,6 +190,7 @@ export function CustomerDialog({
       tags: [],
       dealAmount: '',
       expectedAmount: '',
+      nextFollowAt: '',
     },
   });
 
@@ -200,6 +210,7 @@ export function CustomerDialog({
           tags: customer.tags ?? [],
           dealAmount: customer.dealAmount ?? '',
           expectedAmount: customer.expectedAmount ?? '',
+          nextFollowAt: customer.nextFollowAt ? toLocalDatetimeInput(customer.nextFollowAt) : '',
         });
       } else {
         form.reset({
@@ -212,6 +223,7 @@ export function CustomerDialog({
           tags: [],
           dealAmount: '',
           expectedAmount: '',
+          nextFollowAt: '',
         });
       }
       setDuplicateResult(null);
@@ -307,6 +319,7 @@ export function CustomerDialog({
           tags: values.tags ?? [],
           dealAmount: values.dealAmount ?? null,
           expectedAmount: values.expectedAmount ?? null,
+          nextFollowAt: values.nextFollowAt ? new Date(values.nextFollowAt).toISOString() : null,
         };
         await customersApi.update(customer.id, dto);
       } else {
@@ -320,6 +333,7 @@ export function CustomerDialog({
           tags: values.tags ?? [],
           dealAmount: values.dealAmount ?? undefined,
           expectedAmount: values.expectedAmount ?? undefined,
+          nextFollowAt: values.nextFollowAt ? new Date(values.nextFollowAt).toISOString() : null,
         };
         await customersApi.create(dto);
       }
@@ -471,6 +485,24 @@ export function CustomerDialog({
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="nextFollowAt"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>下次跟进时间</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="datetime-local"
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

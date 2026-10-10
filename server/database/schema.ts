@@ -179,6 +179,8 @@ export const customers = pgTable("customers", {
   isFavorite: boolean("is_favorite").notNull().default(false),
   dealAmount: numeric("deal_amount", { precision: 14, scale: 2 }),
   expectedAmount: numeric("expected_amount", { precision: 14, scale: 2 }),
+  nextFollowAt: customTimestamptz("next_follow_at", { precision: 3 }),
+  attachments: text("attachments"),
   owner: uuid("owner").default(sql`CASE
     WHEN (current_setting('app.user_id'::text, true) = ''::text) THEN NULL`),
   employeeId: uuid("employee_id"),

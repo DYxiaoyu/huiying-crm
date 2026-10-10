@@ -9,7 +9,7 @@ import {
 import { DRIZZLE_DATABASE } from '@server/database/database.module';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { customers, employees, followUps } from '@server/database/schema';
-import { eq, and, count, desc, asc, ilike, or, max, ne, inArray, gte } from 'drizzle-orm';
+import { eq, and, count, desc, asc, ilike, or, max, ne, inArray, gte, lte, isNotNull } from 'drizzle-orm';
 import archiver from 'archiver';
 import type {
   Customer,
@@ -23,6 +23,7 @@ import type {
   TagStat,
   BatchResult,
   TimeRange,
+  CustomerAttachment,
 } from '@shared/api.interface';
 
 interface ListParams {
@@ -35,6 +36,7 @@ interface ListParams {
   favoriteOnly?: boolean;
   tag?: string;
   timeRange?: TimeRange;
+  dueSoon?: boolean;
 }
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -63,6 +65,44 @@ function toTagsJson(tags: string[] | undefined): string | null {
   if (!tags || !Array.isArray(tags)) return null;
   const cleaned = [...new Set(tags.map((t) => String(t).trim()).filter((t) => t.length > 0))];
   return cleaned.length > 0 ? JSON.stringify(cleaned) : null;
+}
+
+/** 解析 attachments JSON 列 → CustomerAttachment[] */
+function parseAttachments(raw: string | null): CustomerAttachment[] {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr)
+      ? arr.filter((x) => x && typeof x.url === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function toAttachmentsJson(attachments: CustomerAttachment[] | undefined): string | null {
+  if (!attachments || !Array.isArray(attachments) || attachments.length === 0) return null;
+  const cleaned = attachments
+    .filter((a) => a && typeof a.url === 'string' && a.url.startsWith('/uploads/'))
+    .map((a) => ({
+      url: a.url,
+      name: String(a.name ?? ''),
+      size: Number(a.size ?? 0),
+      type: String(a.type ?? ''),
+      uploadedAt: a.uploadedAt ?? new Date().toISOString(),
+    }));
+  return cleaned.length > 0 ? JSON.stringify(cleaned) : null;
+}
+
+/** 上海时区"今天结束"时刻（本地业务日 23:59:59，用于下次跟进到期判断） */
+function endOfTodayLocal(): Date {
+  const offsetMs = 8 * 60 * 60 * 1000;
+  const now = new Date();
+  const shifted = new Date(now.getTime() + offsetMs);
+  const endUtc = new Date(
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(), 23, 59, 59, 999),
+  );
+  return new Date(endUtc.getTime() - offsetMs);
 }
 
 @Injectable()
@@ -179,6 +219,7 @@ export class CustomersService {
         tags: toTagsJson(dto.tags),
         dealAmount: dto.dealAmount !== undefined && dto.dealAmount !== null ? String(dto.dealAmount) : null,
         expectedAmount: dto.expectedAmount !== undefined && dto.expectedAmount !== null ? String(dto.expectedAmount) : null,
+        nextFollowAt: dto.nextFollowAt ? new Date(dto.nextFollowAt) : null,
         employeeId,
       })
       .returning();
@@ -207,6 +248,8 @@ export class CustomersService {
     if (dto.tags !== undefined) patch.tags = toTagsJson(dto.tags);
     if (dto.dealAmount !== undefined) patch.dealAmount = dto.dealAmount === null ? null : String(dto.dealAmount);
     if (dto.expectedAmount !== undefined) patch.expectedAmount = dto.expectedAmount === null ? null : String(dto.expectedAmount);
+    if (dto.nextFollowAt !== undefined) patch.nextFollowAt = dto.nextFollowAt === null ? null : new Date(dto.nextFollowAt);
+    if (dto.attachments !== undefined) patch.attachments = toAttachmentsJson(dto.attachments);
 
     if (Object.keys(patch).length === 0) {
       throw new BadRequestException('未提供可更新字段');
@@ -610,11 +653,11 @@ export class CustomersService {
 
   /** 构建客户列表/导出共用的筛选条件 */
   private buildCustomerConditions(
-    params: Pick<ListParams, 'keyword' | 'stage' | 'favoriteOnly' | 'tag' | 'timeRange'>,
+    params: Pick<ListParams, 'keyword' | 'stage' | 'favoriteOnly' | 'tag' | 'timeRange' | 'dueSoon'>,
     employeeId: string,
     isAdmin: boolean,
   ) {
-    const { keyword, stage, favoriteOnly, tag, timeRange } = params;
+    const { keyword, stage, favoriteOnly, tag, timeRange, dueSoon } = params;
     const conditions = [...this.customerScope(isAdmin, employeeId)];
     if (keyword && keyword.trim()) {
       const pattern = `%${keyword.trim()}%`;
@@ -637,6 +680,15 @@ export class CustomersService {
     }
     if (timeRange && TIME_RANGE_DAYS[timeRange]) {
       conditions.push(gte(customers.createdAt, new Date(Date.now() - TIME_RANGE_DAYS[timeRange] * 24 * 60 * 60 * 1000)));
+    }
+    if (dueSoon) {
+      // 下次跟进时间已到（含今天之内到期），用于列表"跟进到期"提醒
+      conditions.push(
+        and(
+          isNotNull(customers.nextFollowAt),
+          lte(customers.nextFollowAt, endOfTodayLocal()),
+        ),
+      );
     }
     return conditions;
   }
@@ -708,6 +760,66 @@ export class CustomersService {
       expectedAmount: row.expectedAmount !== null && row.expectedAmount !== undefined
         ? Number(row.expectedAmount)
         : null,
+      nextFollowAt: row.nextFollowAt ? row.nextFollowAt.toISOString() : null,
+      attachments: parseAttachments(row.attachments),
     };
+  }
+
+  /** 上传客户附件：追加到 attachments 列表（磁盘文件由文件管理统一管理） */
+  async addAttachment(
+    id: string,
+    file: { originalname?: string; filename?: string; size?: number; mimetype?: string },
+    employeeId: string,
+    isAdmin: boolean,
+  ): Promise<Customer> {
+    if (!file || !file.filename) {
+      throw new BadRequestException('未收到文件');
+    }
+    const existing = await this.db
+      .select()
+      .from(customers)
+      .where(and(...this.customerScope(isAdmin, employeeId), eq(customers.id, id)))
+      .limit(1);
+    if (existing.length === 0) {
+      throw new NotFoundException('客户不存在');
+    }
+    const current = parseAttachments(existing[0].attachments);
+    current.push({
+      url: '/uploads/' + file.filename,
+      name: file.originalname || file.filename,
+      size: file.size ?? 0,
+      type: file.mimetype ?? '',
+      uploadedAt: new Date().toISOString(),
+    });
+    const updated = await this.db
+      .update(customers)
+      .set({ attachments: toAttachmentsJson(current), updatedAt: new Date() })
+      .where(eq(customers.id, id))
+      .returning();
+    this.logger.log(`客户 ${id} 上传附件成功: ${file.filename}`);
+    return this.toCustomer(updated[0], null, false);
+  }
+
+  /** 移除客户附件引用（仅移除引用，磁盘文件保留在文件管理/回收站统一治理） */
+  async removeAttachment(id: string, url: string, employeeId: string, isAdmin: boolean): Promise<Customer> {
+    if (!url || !url.startsWith('/uploads/')) {
+      throw new BadRequestException('无效的附件路径');
+    }
+    const existing = await this.db
+      .select()
+      .from(customers)
+      .where(and(...this.customerScope(isAdmin, employeeId), eq(customers.id, id)))
+      .limit(1);
+    if (existing.length === 0) {
+      throw new NotFoundException('客户不存在');
+    }
+    const current = parseAttachments(existing[0].attachments).filter((a) => a.url !== url);
+    const updated = await this.db
+      .update(customers)
+      .set({ attachments: toAttachmentsJson(current), updatedAt: new Date() })
+      .where(eq(customers.id, id))
+      .returning();
+    this.logger.log(`客户 ${id} 移除附件引用: ${url}`);
+    return this.toCustomer(updated[0], null, false);
   }
 }
