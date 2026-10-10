@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { DRIZZLE_DATABASE } from '@server/database/database.module';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, isNull } from 'drizzle-orm';
 import { followUps, customers } from '@server/database/schema';
 import { OperationLogsService } from '@server/modules/operation-logs/operation-logs.service';
 import type { FollowUp, CreateFollowUpDto } from '@shared/api.interface';
@@ -32,7 +32,7 @@ export class FollowUpsService {
     const customerRows = await this.db
       .select({ id: customers.id, name: customers.name })
       .from(customers)
-      .where(and(...this.customerAccess(employeeId, isAdmin), eq(customers.id, customerId)))
+      .where(and(...this.customerAccess(employeeId, isAdmin), eq(customers.id, customerId), isNull(customers.deletedAt)))
       .limit(1);
     if (customerRows.length === 0) {
       throw new NotFoundException('客户不存在');
@@ -58,7 +58,7 @@ export class FollowUpsService {
     const customerList = await this.db
       .select({ id: customers.id, name: customers.name })
       .from(customers)
-      .where(and(...this.customerAccess(employeeId, isAdmin), eq(customers.id, customerId)));
+      .where(and(...this.customerAccess(employeeId, isAdmin), eq(customers.id, customerId), isNull(customers.deletedAt)));
 
     if (customerList.length === 0) {
       throw new NotFoundException('客户不存在');

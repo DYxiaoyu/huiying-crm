@@ -5,6 +5,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  OnApplicationBootstrap,
 } from '@nestjs/common';
 import { DRIZZLE_DATABASE } from '@server/database/database.module';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
@@ -114,13 +115,18 @@ function endOfTodayLocal(): Date {
 }
 
 @Injectable()
-export class CustomersService {
+export class CustomersService implements OnApplicationBootstrap {
   private readonly logger = new Logger(CustomersService.name);
 
   constructor(
     @Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase,
     private readonly operationLogs: OperationLogsService,
   ) {}
+
+  /** 应用启动时顺带清理超期（30 天）回收站客户，防止长期不打开回收站导致堆积 */
+  onApplicationBootstrap(): void {
+    void this.cleanupTrash();
+  }
 
   async list(params: ListParams, employeeId: string, isAdmin: boolean): Promise<CustomerListResponse> {
     const { page, pageSize: rawPageSize, keyword, stage, sortBy, sortOrder, favoriteOnly, tag, timeRange, trashOnly } = params;
