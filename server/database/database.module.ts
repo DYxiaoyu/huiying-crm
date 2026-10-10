@@ -126,6 +126,41 @@ async function ensureSchema(client: postgres.Sql): Promise<void> {
     -- 下次跟进时间 / 客户附件（JSON 数组字符串，老表升级用，幂等）
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS next_follow_at timestamptz(3);
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS attachments text;
+    -- 回收站软删除标记（老表升级用，幂等）
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS deleted_at timestamptz(3);
+
+    -- 客户多联系人
+    CREATE TABLE IF NOT EXISTS customer_contacts (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      customer_id uuid NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+      name varchar(100) NOT NULL,
+      position varchar(100),
+      phone varchar(50),
+      wechat varchar(100),
+      _created_at timestamptz(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      _created_by uuid,
+      _updated_at timestamptz(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      _updated_by uuid
+    );
+    CREATE INDEX IF NOT EXISTS idx_customer_contacts_customer ON customer_contacts(customer_id);
+
+    -- 操作日志
+    CREATE TABLE IF NOT EXISTS operation_logs (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      employee_id uuid NOT NULL,
+      employee_name varchar(100) NOT NULL,
+      action varchar(50) NOT NULL,
+      target_type varchar(50) NOT NULL,
+      target_id uuid,
+      target_name varchar(255),
+      detail text,
+      _created_at timestamptz(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      _created_by uuid,
+      _updated_at timestamptz(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      _updated_by uuid
+    );
+    CREATE INDEX IF NOT EXISTS idx_operation_logs_employee ON operation_logs(employee_id);
+    CREATE INDEX IF NOT EXISTS idx_operation_logs_created ON operation_logs(_created_at);
   `);
 }
 

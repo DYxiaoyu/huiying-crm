@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { DRIZZLE_DATABASE } from '@server/database/database.module';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { eq, desc, max } from 'drizzle-orm';
+import { eq, desc, max, and, isNull } from 'drizzle-orm';
 import { customers, followUps } from '@server/database/schema';
 import {
   STAGE_ORDER,
@@ -76,7 +76,9 @@ export class DashboardService {
         nextFollowAt: customers.nextFollowAt,
       })
       .from(customers)
-      .where(isAdmin ? undefined : eq(customers.employeeId, employeeId));
+      .where(isAdmin
+        ? isNull(customers.deletedAt)
+        : and(eq(customers.employeeId, employeeId), isNull(customers.deletedAt)));
 
     const total: number = allCustomers.length;
 

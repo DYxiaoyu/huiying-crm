@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { X, Phone, Trash2, Star, Paperclip, Download, Loader2 } from 'lucide-react';
+import { X, Phone, Trash2, Star, Paperclip, Download, Loader2, Users, Pencil, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@lark-apaas/client-toolkit/logger';
 import { useForm } from 'react-hook-form';
@@ -23,11 +23,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 
 import * as customersApi from '@/api/customers';
 import * as followUpsApi from '@/api/follow-ups';
 import type {
   Customer,
+  CustomerContact,
   CustomerStage,
   FollowUp,
   UpdateCustomerDto,
@@ -91,9 +93,19 @@ export function CustomerDetailDrawer({
 }: CustomerDetailDrawerProps) {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [contacts, setContacts] = useState<CustomerContact[]>([]);
   const [loading, setLoading] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // 联系人表单
+  const [contactFormOpen, setContactFormOpen] = useState(false);
+  const [editingContact, setEditingContact] = useState<CustomerContact | null>(null);
+  const [contactName, setContactName] = useState('');
+  const [contactPosition, setContactPosition] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactWechat, setContactWechat] = useState('');
+  const [contactSubmitting, setContactSubmitting] = useState(false);
 
   const followForm = useForm<FollowUpFormValues>({
     resolver: zodResolver(followUpSchema),
@@ -108,12 +120,14 @@ export function CustomerDetailDrawer({
     if (!customerId) return;
     setLoading(true);
     try {
-      const [cust, list] = await Promise.all([
+      const [cust, list, contactList] = await Promise.all([
         customersApi.getDetail(customerId),
         followUpsApi.listByCustomer(customerId),
+        customersApi.listContacts(customerId),
       ]);
       setCustomer(cust);
       setFollowUps(list);
+      setContacts(contactList);
     } catch (err) {
       logger.error('加载客户详情失败', err as Error);
     } finally {
@@ -125,9 +139,79 @@ export function CustomerDetailDrawer({
     if (customerId) {
       setCustomer(null);
       setFollowUps([]);
+      setContacts([]);
       void fetchData();
     }
   }, [customerId, fetchData]);
+
+  // ===================== 联系人 =====================
+  const openAddContact = () => {
+    setEditingContact(null);
+    setContactName('');
+    setContactPosition('');
+    setContactPhone('');
+    setContactWechat('');
+    setContactFormOpen(true);
+  };
+
+  const openEditContact = (contact: CustomerContact) => {
+    setEditingContact(contact);
+    setContactName(contact.name);
+    setContactPosition(contact.position ?? '');
+    setContactPhone(contact.phone ?? '');
+    setContactWechat(contact.wechat ?? '');
+    setContactFormOpen(true);
+  };
+
+  const handleContactSubmit = async () => {
+    if (!customerId) return;
+    if (!contactName.trim()) {
+      toast.error('联系人姓名不能为空');
+      return;
+    }
+    setContactSubmitting(true);
+    try {
+      if (editingContact) {
+        await customersApi.updateContact(customerId, editingContact.id, {
+          name: contactName.trim(),
+          position: contactPosition || undefined,
+          phone: contactPhone || undefined,
+          wechat: contactWechat || undefined,
+        });
+        toast.success('联系人已更新');
+      } else {
+        await customersApi.addContact(customerId, {
+          name: contactName.trim(),
+          position: contactPosition || undefined,
+          phone: contactPhone || undefined,
+          wechat: contactWechat || undefined,
+        });
+        toast.success('联系人已添加');
+      }
+      setContactFormOpen(false);
+      void fetchData();
+      onSuccess?.();
+    } catch (err) {
+      logger.error('保存联系人失败', err as Error);
+      toast.error('保存失败，请重试');
+    } finally {
+      setContactSubmitting(false);
+    }
+  };
+
+  const handleRemoveContact = async (contact: CustomerContact) => {
+    if (!customerId) return;
+    const confirmed = await showConfirm(`确定删除联系人「${contact.name}」吗？`);
+    if (!confirmed) return;
+    try {
+      await customersApi.removeContact(customerId, contact.id);
+      toast.success('联系人已删除');
+      void fetchData();
+    } catch (err) {
+      logger.error('删除联系人失败', err as Error);
+      toast.error('删除失败，请重试');
+    }
+  };
 
   const handleAddFollowUp = async (values: FollowUpFormValues) => {
     if (!customerId) return;
@@ -166,12 +250,12 @@ export function CustomerDetailDrawer({
 
   const handleDelete = async () => {
     if (!customer) return;
-    const confirmed = await showConfirm('确定要删除该客户吗？此操作不可撤销。');
+    const confirmed = await showConfirm('确定将该客户移入回收站吗？30 天内可在回收站恢复。');
     if (!confirmed) return;
     setDeleting(true);
     try {
       await customersApi.remove(customer.id);
-      toast.success('客户已删除');
+      toast.success('客户已移入回收站');
       onClose();
       onSuccess?.();
     } catch (err) {
@@ -400,9 +484,91 @@ export function CustomerDetailDrawer({
                     disabled={deleting}
                   >
                     <Trash2 className="size-3.5" />
-                    {deleting ? '删除中...' : '删除'}
+                    {deleting ? '删除中...' : '移入回收站'}
                   </Button>
                 </div>
+              </div>
+
+              {/* 客户联系人（多联系人） */}
+              <div className="rounded-xl border border-[#E4E7EC] bg-white shadow-sm p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-[14px] font-semibold text-[#1D2733] flex items-center gap-1.5">
+                    <Users className="size-4 text-[#5B6773]" />
+                    联系人
+                    <span className="text-[12px] font-normal text-[#98A2B3]">
+                      （{contacts.length} 个）
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={openAddContact}
+                  >
+                    <Plus className="size-3.5" />
+                    添加联系人
+                  </Button>
+                </div>
+
+                {contacts.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {contacts.map((contact) => (
+                      <div
+                        key={contact.id}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-[#E4E7EC] bg-[#F9FAFB]"
+                      >
+                        <div className="size-9 rounded-full bg-[#0E7C6B] text-white flex items-center justify-center text-[13px] font-semibold shrink-0">
+                          {contact.name.slice(0, 1)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[13px] font-medium text-[#1D2733]">
+                              {contact.name}
+                            </span>
+                            {contact.position && (
+                              <span className="px-1.5 py-0.5 rounded-full text-[11px] bg-blue-50 text-blue-700">
+                                {contact.position}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-0.5 text-[12px] text-[#5B6773] flex items-center gap-3 flex-wrap">
+                            {contact.phone && (
+                              <span className="inline-flex items-center gap-1">
+                                <Phone className="size-3" />
+                                {contact.phone}
+                              </span>
+                            )}
+                            {contact.wechat && (
+                              <span>微信：{contact.wechat}</span>
+                            )}
+                            {!contact.phone && !contact.wechat && (
+                              <span className="text-[#98A2B3]">无联系方式</span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="p-1.5 rounded-md text-[#5B6773] hover:bg-[#E4E7EC] transition-colors"
+                          title="编辑联系人"
+                          onClick={() => openEditContact(contact)}
+                        >
+                          <Pencil className="size-4" />
+                        </button>
+                        <button
+                          type="button"
+                          className="p-1.5 rounded-md text-[#98A2B3] hover:bg-[#FDECEC] hover:text-[#DC2626] transition-colors"
+                          title="删除联系人"
+                          onClick={() => void handleRemoveContact(contact)}
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-[12px] text-[#98A2B3]">
+                    暂无联系人，可添加职位/电话/微信等信息
+                  </div>
+                )}
               </div>
 
               {/* 客户附件（报价单/聊天截图等） */}
@@ -622,6 +788,88 @@ export function CustomerDetailDrawer({
           onSuccess?.();
         }}
       />
+
+      {/* 联系人表单弹层 */}
+      {contactFormOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/30 z-[60]"
+            onClick={() => !contactSubmitting && setContactFormOpen(false)}
+          />
+          <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[92%] max-w-[400px] bg-white rounded-xl shadow-2xl z-[70] p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-[15px] font-semibold text-[#1D2733]">
+                {editingContact ? '编辑联系人' : '添加联系人'}
+              </div>
+              <button
+                type="button"
+                onClick={() => setContactFormOpen(false)}
+                className="p-1.5 rounded-lg text-[#98A2B3] hover:bg-[#F2F4F7] transition-colors"
+                aria-label="关闭"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[13px] font-medium text-[#344054]">
+                  姓名 <span className="text-[#DC2626]">*</span>
+                </label>
+                <Input
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
+                  placeholder="联系人姓名"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-[13px] font-medium text-[#344054]">职位</label>
+                <Input
+                  value={contactPosition}
+                  onChange={(e) => setContactPosition(e.target.value)}
+                  placeholder="如：采购经理"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-[13px] font-medium text-[#344054]">电话</label>
+                <Input
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  placeholder="如：+7 912 345-67-89"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-[13px] font-medium text-[#344054]">微信</label>
+                <Input
+                  value={contactWechat}
+                  onChange={(e) => setContactWechat(e.target.value)}
+                  placeholder="微信号 / WhatsApp"
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setContactFormOpen(false)}
+                disabled={contactSubmitting}
+              >
+                取消
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void handleContactSubmit()}
+                disabled={contactSubmitting}
+              >
+                {contactSubmitting ? '保存中...' : '保存'}
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

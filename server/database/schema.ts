@@ -181,6 +181,7 @@ export const customers = pgTable("customers", {
   expectedAmount: numeric("expected_amount", { precision: 14, scale: 2 }),
   nextFollowAt: customTimestamptz("next_follow_at", { precision: 3 }),
   attachments: text("attachments"),
+  deletedAt: customTimestamptz("deleted_at", { precision: 3 }),
   owner: uuid("owner").default(sql`CASE
     WHEN (current_setting('app.user_id'::text, true) = ''::text) THEN NULL`),
   employeeId: uuid("employee_id"),
@@ -259,6 +260,58 @@ export const supplierKeys = pgTable("supplier_keys", {
     WHEN (current_setting('app.user_id'::text, true) = ''::text) THEN NULL`),
 }, (table) => [
   uniqueIndex("supplier_keys_key_key").on(table.key),
+]);
+
+/** 客户多联系人 */
+export const customerContacts = pgTable("customer_contacts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  customerId: uuid("customer_id").notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  position: varchar("position", { length: 100 }),
+  phone: varchar("phone", { length: 50 }),
+  wechat: varchar("wechat", { length: 100 }),
+  // System field: Creation time (auto-filled, do not modify)
+  createdAt: customTimestamptz("_created_at", { precision: 3 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  // System field: Creator (auto-filled, do not modify)
+  createdBy: uuid("_created_by").default(sql`CASE
+    WHEN (current_setting('app.user_id'::text, true) = ''::text) THEN NULL`),
+  // System field: Update time (auto-filled, do not modify)
+  updatedAt: customTimestamptz("_updated_at", { precision: 3 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  // System field: Updater (auto-filled, do not modify)
+  updatedBy: uuid("_updated_by").default(sql`CASE
+    WHEN (current_setting('app.user_id'::text, true) = ''::text) THEN NULL`),
+}, (table) => [
+  index("idx_customer_contacts_customer").on(table.customerId),
+  foreignKey({
+    columns: [table.customerId],
+    foreignColumns: [customers.id],
+    name: "customer_contacts_customer_id_fkey",
+  }).onDelete("cascade"),
+]);
+
+/** 操作日志 */
+export const operationLogs = pgTable("operation_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  employeeId: uuid("employee_id").notNull(),
+  employeeName: varchar("employee_name", { length: 100 }).notNull(),
+  action: varchar("action", { length: 50 }).notNull(),
+  targetType: varchar("target_type", { length: 50 }).notNull(),
+  targetId: uuid("target_id"),
+  targetName: varchar("target_name", { length: 255 }),
+  detail: text("detail"),
+  // System field: Creation time (auto-filled, do not modify)
+  createdAt: customTimestamptz("_created_at", { precision: 3 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  // System field: Creator (auto-filled, do not modify)
+  createdBy: uuid("_created_by").default(sql`CASE
+    WHEN (current_setting('app.user_id'::text, true) = ''::text) THEN NULL`),
+  // System field: Update time (auto-filled, do not modify)
+  updatedAt: customTimestamptz("_updated_at", { precision: 3 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  // System field: Updater (auto-filled, do not modify)
+  updatedBy: uuid("_updated_by").default(sql`CASE
+    WHEN (current_setting('app.user_id'::text, true) = ''::text) THEN NULL`),
+}, (table) => [
+  index("idx_operation_logs_employee").on(table.employeeId),
+  index("idx_operation_logs_created").on(table.createdAt),
 ]);
 
 // table aliases

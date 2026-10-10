@@ -13,6 +13,7 @@ import LeadFormPage from './pages/lead/LeadFormPage';
 import AdminPage from './pages/admin/AdminPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import FilesPage from './pages/files/FilesPage';
+import OperationLogsPage from './pages/operation-logs/OperationLogsPage';
 import LoginPage from './pages/login/LoginPage';
 
 const ProtectedRoute = ({ children }: { children: React.ReactElement }) => {
@@ -60,6 +61,7 @@ const RoutesComponent = () => {
           <Route path="suppliers" element={<SuppliersPage />} />
           <Route path="supplier-keys" element={<SupplierKeysPage />} />
           <Route path="files" element={<FilesPage />} />
+          <Route path="operation-logs" element={<OperationLogsPage />} />
           <Route
             path="admin"
             element={

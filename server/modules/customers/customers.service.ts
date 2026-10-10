@@ -8,9 +8,10 @@ import {
 } from '@nestjs/common';
 import { DRIZZLE_DATABASE } from '@server/database/database.module';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { customers, employees, followUps } from '@server/database/schema';
-import { eq, and, count, desc, asc, ilike, or, max, ne, inArray, gte, lte, isNotNull } from 'drizzle-orm';
+import { customers, employees, followUps, customerContacts } from '@server/database/schema';
+import { eq, and, count, desc, asc, ilike, or, max, ne, inArray, gte, lte, isNotNull, isNull } from 'drizzle-orm';
 import archiver from 'archiver';
+import { OperationLogsService } from '@server/modules/operation-logs/operation-logs.service';
 import type {
   Customer,
   CustomerListResponse,
@@ -24,6 +25,9 @@ import type {
   BatchResult,
   TimeRange,
   CustomerAttachment,
+  CustomerContact,
+  CreateContactDto,
+  UpdateContactDto,
 } from '@shared/api.interface';
 
 interface ListParams {
@@ -37,7 +41,11 @@ interface ListParams {
   tag?: string;
   timeRange?: TimeRange;
   dueSoon?: boolean;
+  trashOnly?: boolean;
 }
+
+/** 回收站保留天数：30 天自动彻底清除 */
+const TRASH_RETENTION_DAYS = 30;
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const TIME_RANGE_DAYS: Record<TimeRange, number> = {
@@ -109,13 +117,21 @@ function endOfTodayLocal(): Date {
 export class CustomersService {
   private readonly logger = new Logger(CustomersService.name);
 
-  constructor(@Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase) {}
+  constructor(
+    @Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase,
+    private readonly operationLogs: OperationLogsService,
+  ) {}
 
   async list(params: ListParams, employeeId: string, isAdmin: boolean): Promise<CustomerListResponse> {
-    const { page, pageSize: rawPageSize, keyword, stage, sortBy, sortOrder, favoriteOnly, tag, timeRange } = params;
+    const { page, pageSize: rawPageSize, keyword, stage, sortBy, sortOrder, favoriteOnly, tag, timeRange, trashOnly } = params;
     const safePage = Math.max(1, page);
     const safePageSize = Math.min(50, Math.max(1, rawPageSize));
     const offset = (safePage - 1) * safePageSize;
+
+    // 回收站视图：顺带清理超期（30 天）已删客户，防堆积
+    if (trashOnly) {
+      await this.cleanupTrash();
+    }
 
     const conditions = this.buildCustomerConditions(params, employeeId, isAdmin);
     const whereClause = and(...conditions);
@@ -182,7 +198,7 @@ export class CustomersService {
     const rows = await this.db
       .select()
       .from(customers)
-      .where(and(...this.customerScope(isAdmin, employeeId), eq(customers.id, id)))
+      .where(and(...this.customerScope(isAdmin, employeeId), eq(customers.id, id), isNull(customers.deletedAt)))
       .limit(1);
     if (rows.length === 0) {
       throw new NotFoundException('客户不存在');
@@ -203,7 +219,7 @@ export class CustomersService {
     return this.toCustomer(rows[0], lastFollow, isOverdue);
   }
 
-  async create(dto: CreateCustomerDto, employeeId: string): Promise<Customer> {
+  async create(dto: CreateCustomerDto, employeeId: string, employeeName: string): Promise<Customer> {
     if (!dto.name || !dto.name.trim()) {
       throw new BadRequestException('客户姓名不能为空');
     }
@@ -224,10 +240,19 @@ export class CustomersService {
       })
       .returning();
     this.logger.log(`创建客户成功: ${inserted[0].id}`);
+    void this.operationLogs.record({
+      employeeId,
+      employeeName,
+      action: 'create',
+      targetType: 'customer',
+      targetId: inserted[0].id,
+      targetName: inserted[0].name,
+      detail: `新增客户：${inserted[0].name}`,
+    });
     return this.toCustomer(inserted[0], null, false);
   }
 
-  async update(id: string, dto: UpdateCustomerDto, employeeId: string, isAdmin: boolean): Promise<Customer> {
+  async update(id: string, dto: UpdateCustomerDto, employeeId: string, isAdmin: boolean, employeeName: string): Promise<Customer> {
     const existing = await this.db
       .select()
       .from(customers)
@@ -276,10 +301,21 @@ export class CustomersService {
     const baseline = lastFollow ?? updated[0].createdAt;
     const isOverdue = now - baseline.getTime() > SEVEN_DAYS_MS;
 
+    void this.operationLogs.record({
+      employeeId,
+      employeeName,
+      action: 'update',
+      targetType: 'customer',
+      targetId: id,
+      targetName: updated[0].name,
+      detail: `更新客户资料：${updated[0].name}`,
+    });
+
     return this.toCustomer(updated[0], lastFollow, isOverdue);
   }
 
-  async remove(id: string, employeeId: string, isAdmin: boolean): Promise<void> {
+  /** 删除客户 → 移入回收站（软删除），30 天后自动彻底清除 */
+  async remove(id: string, employeeId: string, isAdmin: boolean, employeeName: string): Promise<void> {
     const existing = await this.db
       .select()
       .from(customers)
@@ -288,8 +324,243 @@ export class CustomersService {
     if (existing.length === 0) {
       throw new NotFoundException('客户不存在');
     }
+    await this.db
+      .update(customers)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(eq(customers.id, id));
+    this.logger.log(`客户移入回收站: ${id}`);
+    void this.operationLogs.record({
+      employeeId,
+      employeeName,
+      action: 'delete',
+      targetType: 'customer',
+      targetId: id,
+      targetName: existing[0].name,
+      detail: `将客户移入回收站：${existing[0].name}`,
+    });
+  }
+
+  /** 回收站自动清理：删除超过 30 天的客户（级联删除跟进记录与联系人） */
+  async cleanupTrash(): Promise<void> {
+    const cutoff = new Date(Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const expired = await this.db
+      .select({ id: customers.id })
+      .from(customers)
+      .where(and(isNotNull(customers.deletedAt), lte(customers.deletedAt, cutoff)));
+    if (expired.length === 0) return;
+    await this.db.delete(customers).where(inArray(customers.id, expired.map((r) => r.id)));
+    this.logger.log(`回收站自动清理: ${expired.length} 条超过 ${TRASH_RETENTION_DAYS} 天的客户已彻底删除`);
+  }
+
+  /** 从回收站恢复客户 */
+  async restore(id: string, employeeId: string, isAdmin: boolean, employeeName: string): Promise<Customer> {
+    const existing = await this.db
+      .select()
+      .from(customers)
+      .where(and(...this.customerScope(isAdmin, employeeId), eq(customers.id, id), isNotNull(customers.deletedAt)))
+      .limit(1);
+    if (existing.length === 0) {
+      throw new NotFoundException('回收站中不存在该客户');
+    }
+    const updated = await this.db
+      .update(customers)
+      .set({ deletedAt: null, updatedAt: new Date() })
+      .where(eq(customers.id, id))
+      .returning();
+    this.logger.log(`客户已从回收站恢复: ${id}`);
+    void this.operationLogs.record({
+      employeeId,
+      employeeName,
+      action: 'restore',
+      targetType: 'customer',
+      targetId: id,
+      targetName: updated[0].name,
+      detail: `从回收站恢复客户：${updated[0].name}`,
+    });
+    return this.toCustomer(updated[0], null, false);
+  }
+
+  /** 彻底删除（仅回收站内可操作；管理员/员工仅限自己权限范围） */
+  async purge(id: string, employeeId: string, isAdmin: boolean, employeeName: string): Promise<void> {
+    const existing = await this.db
+      .select()
+      .from(customers)
+      .where(and(...this.customerScope(isAdmin, employeeId), eq(customers.id, id), isNotNull(customers.deletedAt)))
+      .limit(1);
+    if (existing.length === 0) {
+      throw new NotFoundException('回收站中不存在该客户');
+    }
     await this.db.delete(customers).where(eq(customers.id, id));
-    this.logger.log(`删除客户成功: ${id}`);
+    this.logger.log(`客户已彻底删除: ${id}`);
+    void this.operationLogs.record({
+      employeeId,
+      employeeName,
+      action: 'purge',
+      targetType: 'customer',
+      targetId: id,
+      targetName: existing[0].name,
+      detail: `彻底删除客户：${existing[0].name}`,
+    });
+  }
+
+  // ===================== 客户多联系人 =====================
+
+  /** 校验客户可见性（返回客户名），供联系人操作复用 */
+  private async assertCustomerVisible(
+    customerId: string,
+    employeeId: string,
+    isAdmin: boolean,
+    allowDeleted = false,
+  ): Promise<string> {
+    const conditions = [...this.customerScope(isAdmin, employeeId), eq(customers.id, customerId)];
+    if (!allowDeleted) conditions.push(isNull(customers.deletedAt));
+    const rows = await this.db
+      .select({ id: customers.id, name: customers.name })
+      .from(customers)
+      .where(and(...conditions))
+      .limit(1);
+    if (rows.length === 0) {
+      throw new NotFoundException('客户不存在');
+    }
+    return rows[0].name;
+  }
+
+  async listContacts(customerId: string, employeeId: string, isAdmin: boolean): Promise<CustomerContact[]> {
+    await this.assertCustomerVisible(customerId, employeeId, isAdmin);
+    const rows = await this.db
+      .select()
+      .from(customerContacts)
+      .where(eq(customerContacts.customerId, customerId))
+      .orderBy(asc(customerContacts.createdAt));
+    return rows.map((r) => ({
+      id: r.id,
+      customerId: r.customerId,
+      name: r.name,
+      position: r.position,
+      phone: r.phone,
+      wechat: r.wechat,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  async addContact(
+    customerId: string,
+    dto: CreateContactDto,
+    employeeId: string,
+    isAdmin: boolean,
+    employeeName: string,
+  ): Promise<CustomerContact> {
+    if (!dto.name || !dto.name.trim()) {
+      throw new BadRequestException('联系人姓名不能为空');
+    }
+    const customerName = await this.assertCustomerVisible(customerId, employeeId, isAdmin);
+    const inserted = await this.db
+      .insert(customerContacts)
+      .values({
+        customerId,
+        name: dto.name.trim(),
+        position: dto.position ?? null,
+        phone: dto.phone ?? null,
+        wechat: dto.wechat ?? null,
+      })
+      .returning();
+    this.logger.log(`客户 ${customerId} 新增联系人: ${inserted[0].name}`);
+    void this.operationLogs.record({
+      employeeId,
+      employeeName,
+      action: 'contact_add',
+      targetType: 'contact',
+      targetId: customerId,
+      targetName: customerName,
+      detail: `为客户「${customerName}」新增联系人：${inserted[0].name}`,
+    });
+    return {
+      id: inserted[0].id,
+      customerId: inserted[0].customerId,
+      name: inserted[0].name,
+      position: inserted[0].position,
+      phone: inserted[0].phone,
+      wechat: inserted[0].wechat,
+      createdAt: inserted[0].createdAt.toISOString(),
+    };
+  }
+
+  async updateContact(
+    customerId: string,
+    contactId: string,
+    dto: UpdateContactDto,
+    employeeId: string,
+    isAdmin: boolean,
+    employeeName: string,
+  ): Promise<CustomerContact> {
+    const customerName = await this.assertCustomerVisible(customerId, employeeId, isAdmin);
+    const existing = await this.db
+      .select()
+      .from(customerContacts)
+      .where(and(eq(customerContacts.id, contactId), eq(customerContacts.customerId, customerId)))
+      .limit(1);
+    if (existing.length === 0) {
+      throw new NotFoundException('联系人不存在');
+    }
+    const patch: Partial<typeof customerContacts.$inferInsert> = {};
+    if (dto.name !== undefined) patch.name = dto.name.trim();
+    if (dto.position !== undefined) patch.position = dto.position;
+    if (dto.phone !== undefined) patch.phone = dto.phone;
+    if (dto.wechat !== undefined) patch.wechat = dto.wechat;
+    if (Object.keys(patch).length === 0) {
+      throw new BadRequestException('未提供可更新字段');
+    }
+    const updated = await this.db
+      .update(customerContacts)
+      .set(patch)
+      .where(eq(customerContacts.id, contactId))
+      .returning();
+    void this.operationLogs.record({
+      employeeId,
+      employeeName,
+      action: 'contact_update',
+      targetType: 'contact',
+      targetId: customerId,
+      targetName: customerName,
+      detail: `更新客户「${customerName}」联系人：${updated[0].name}`,
+    });
+    return {
+      id: updated[0].id,
+      customerId: updated[0].customerId,
+      name: updated[0].name,
+      position: updated[0].position,
+      phone: updated[0].phone,
+      wechat: updated[0].wechat,
+      createdAt: updated[0].createdAt.toISOString(),
+    };
+  }
+
+  async removeContact(
+    customerId: string,
+    contactId: string,
+    employeeId: string,
+    isAdmin: boolean,
+    employeeName: string,
+  ): Promise<void> {
+    const customerName = await this.assertCustomerVisible(customerId, employeeId, isAdmin);
+    const existing = await this.db
+      .select({ id: customerContacts.id, name: customerContacts.name })
+      .from(customerContacts)
+      .where(and(eq(customerContacts.id, contactId), eq(customerContacts.customerId, customerId)))
+      .limit(1);
+    if (existing.length === 0) {
+      throw new NotFoundException('联系人不存在');
+    }
+    await this.db.delete(customerContacts).where(eq(customerContacts.id, contactId));
+    void this.operationLogs.record({
+      employeeId,
+      employeeName,
+      action: 'contact_delete',
+      targetType: 'contact',
+      targetId: customerId,
+      targetName: customerName,
+      detail: `删除客户「${customerName}」联系人：${existing[0].name}`,
+    });
   }
 
   /** 标签聚合：返回可见范围内所有标签及客户数（用于筛选下拉） */
@@ -335,15 +606,27 @@ export class CustomersService {
     return { updated: result.length };
   }
 
-  /** 批量删除 */
-  async batchRemove(ids: string[], employeeId: string, isAdmin: boolean): Promise<BatchResult> {
+  /** 批量删除（软删除 → 回收站） */
+  async batchRemove(ids: string[], employeeId: string, isAdmin: boolean, employeeName: string): Promise<BatchResult> {
     if (!ids || ids.length === 0) throw new BadRequestException('请选择客户');
     const scope = this.customerScope(isAdmin, employeeId);
     const result = await this.db
-      .delete(customers)
-      .where(and(...scope, inArray(customers.id, ids)))
+      .update(customers)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(and(...scope, inArray(customers.id, ids), isNull(customers.deletedAt)))
       .returning({ id: customers.id });
-    this.logger.log(`批量删除客户: ${result.length} 条`);
+    this.logger.log(`批量移入回收站: ${result.length} 条`);
+    if (result.length > 0) {
+      void this.operationLogs.record({
+        employeeId,
+        employeeName,
+        action: 'delete',
+        targetType: 'customer',
+        targetId: '',
+        targetName: `批量删除 ${result.length} 位客户`,
+        detail: `批量将 ${result.length} 位客户移入回收站`,
+      });
+    }
     return { updated: result.length };
   }
 
@@ -596,7 +879,7 @@ export class CustomersService {
     const allCustomers = await this.db
       .select()
       .from(customers)
-      .where(and(...this.customerScope(isAdmin, employeeId)))
+      .where(and(...this.customerScope(isAdmin, employeeId), isNull(customers.deletedAt)))
       .orderBy(desc(customers.createdAt));
 
     const allFollowUps = await this.db
@@ -653,12 +936,18 @@ export class CustomersService {
 
   /** 构建客户列表/导出共用的筛选条件 */
   private buildCustomerConditions(
-    params: Pick<ListParams, 'keyword' | 'stage' | 'favoriteOnly' | 'tag' | 'timeRange' | 'dueSoon'>,
+    params: Pick<ListParams, 'keyword' | 'stage' | 'favoriteOnly' | 'tag' | 'timeRange' | 'dueSoon' | 'trashOnly'>,
     employeeId: string,
     isAdmin: boolean,
   ) {
-    const { keyword, stage, favoriteOnly, tag, timeRange, dueSoon } = params;
+    const { keyword, stage, favoriteOnly, tag, timeRange, dueSoon, trashOnly } = params;
     const conditions = [...this.customerScope(isAdmin, employeeId)];
+    // 回收站：只看已软删除；正常列表：排除已删除
+    if (trashOnly) {
+      conditions.push(isNotNull(customers.deletedAt));
+    } else {
+      conditions.push(isNull(customers.deletedAt));
+    }
     if (keyword && keyword.trim()) {
       const pattern = `%${keyword.trim()}%`;
       conditions.push(or(
@@ -702,7 +991,7 @@ export class CustomersService {
   }
 
   /** 管理员将客户分配给指定员工（公海客户领取/转交） */
-  async assign(id: string, targetEmployeeId: string, operatorId: string, isAdmin: boolean): Promise<Customer> {
+  async assign(id: string, targetEmployeeId: string, operatorId: string, isAdmin: boolean, operatorName: string): Promise<Customer> {
     if (!isAdmin) {
       throw new ForbiddenException('仅管理员可分配客户');
     }
@@ -710,15 +999,15 @@ export class CustomersService {
       throw new BadRequestException('请选择目标员工');
     }
     const customerRows = await this.db
-      .select({ id: customers.id })
+      .select({ id: customers.id, name: customers.name })
       .from(customers)
-      .where(eq(customers.id, id))
+      .where(and(eq(customers.id, id), isNull(customers.deletedAt)))
       .limit(1);
     if (customerRows.length === 0) {
       throw new NotFoundException('客户不存在');
     }
     const empRows = await this.db
-      .select({ id: employees.id })
+      .select({ id: employees.id, name: employees.name })
       .from(employees)
       .where(eq(employees.id, targetEmployeeId.trim()))
       .limit(1);
@@ -731,6 +1020,15 @@ export class CustomersService {
       .where(eq(customers.id, id))
       .returning();
     this.logger.log(`客户 ${id} 已由 ${operatorId} 分配给员工 ${targetEmployeeId}`);
+    void this.operationLogs.record({
+      employeeId: operatorId,
+      employeeName: operatorName,
+      action: 'assign',
+      targetType: 'customer',
+      targetId: id,
+      targetName: customerRows[0].name,
+      detail: `将客户「${customerRows[0].name}」分配给员工：${empRows[0].name}`,
+    });
     return this.toCustomer(updated[0], null, false);
   }
 
@@ -762,6 +1060,7 @@ export class CustomersService {
         : null,
       nextFollowAt: row.nextFollowAt ? row.nextFollowAt.toISOString() : null,
       attachments: parseAttachments(row.attachments),
+      deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
     };
   }
 

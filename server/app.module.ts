@@ -14,6 +14,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { FollowUpsModule } from './modules/follow-ups/follow-ups.module';
 import { LeadModule } from './modules/lead/lead.module';
 import { FilesModule } from './modules/files/files.module';
+import { OperationLogsModule } from './modules/operation-logs/operation-logs.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { FilesModule } from './modules/files/files.module';
     FollowUpsModule,
     LeadModule,
     FilesModule,
+    OperationLogsModule,
     // ====== @route-section: business-modules END ======
 
     // ⚠️ @route-order: last

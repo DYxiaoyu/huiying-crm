@@ -6,14 +6,17 @@ import type {
   BatchResult,
   BatchUpdateStageDto,
   BatchUpdateTagsDto,
+  CreateContactDto,
   CreateCustomerDto,
   Customer,
+  CustomerContact,
   CustomerListQuery,
   CustomerListResponse,
   DuplicateCheckResult,
   ImportCustomerItem,
   ImportResult,
   TagStat,
+  UpdateContactDto,
   UpdateCustomerDto,
 } from '@shared/api.interface';
 
@@ -253,6 +256,88 @@ export async function removeAttachment(id: string, url: string): Promise<Custome
     return data;
   } catch (error) {
     logger.error(`移除客户附件失败: ${id}`, error as Error);
+    throw error;
+  }
+}
+
+/** 从回收站恢复客户 */
+export async function restoreCustomer(id: string): Promise<Customer> {
+  try {
+    const { data } = await axiosForBackend.post<Customer>(`/api/customers/${id}/restore`);
+    return data;
+  } catch (error) {
+    logger.error(`恢复客户失败: ${id}`, error as Error);
+    throw error;
+  }
+}
+
+/** 彻底删除回收站中的客户 */
+export async function purgeCustomer(id: string): Promise<void> {
+  try {
+    await axiosForBackend.delete(`/api/customers/trash/${id}`);
+  } catch (error) {
+    logger.error(`彻底删除客户失败: ${id}`, error as Error);
+    throw error;
+  }
+}
+
+/** 获取客户联系人列表 */
+export async function listContacts(customerId: string): Promise<CustomerContact[]> {
+  try {
+    const { data } = await axiosForBackend.get<CustomerContact[]>(
+      `/api/customers/${customerId}/contacts`
+    );
+    return data;
+  } catch (error) {
+    logger.error(`获取联系人失败: ${customerId}`, error as Error);
+    throw error;
+  }
+}
+
+/** 新增客户联系人 */
+export async function addContact(
+  customerId: string,
+  dto: CreateContactDto
+): Promise<CustomerContact> {
+  try {
+    const { data } = await axiosForBackend.post<CustomerContact>(
+      `/api/customers/${customerId}/contacts`,
+      dto
+    );
+    return data;
+  } catch (error) {
+    logger.error(`新增联系人失败: ${customerId}`, error as Error);
+    throw error;
+  }
+}
+
+/** 更新客户联系人 */
+export async function updateContact(
+  customerId: string,
+  contactId: string,
+  dto: UpdateContactDto
+): Promise<CustomerContact> {
+  try {
+    const { data } = await axiosForBackend.patch<CustomerContact>(
+      `/api/customers/${customerId}/contacts/${contactId}`,
+      dto
+    );
+    return data;
+  } catch (error) {
+    logger.error(`更新联系人失败: ${contactId}`, error as Error);
+    throw error;
+  }
+}
+
+/** 删除客户联系人 */
+export async function removeContact(
+  customerId: string,
+  contactId: string
+): Promise<void> {
+  try {
+    await axiosForBackend.delete(`/api/customers/${customerId}/contacts/${contactId}`);
+  } catch (error) {
+    logger.error(`删除联系人失败: ${contactId}`, error as Error);
     throw error;
   }
 }

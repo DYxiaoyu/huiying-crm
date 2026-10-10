@@ -9,6 +9,7 @@ import { DRIZZLE_DATABASE } from '@server/database/database.module';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq, desc, and } from 'drizzle-orm';
 import { followUps, customers } from '@server/database/schema';
+import { OperationLogsService } from '@server/modules/operation-logs/operation-logs.service';
 import type { FollowUp, CreateFollowUpDto } from '@shared/api.interface';
 
 @Injectable()
@@ -17,6 +18,7 @@ export class FollowUpsService {
 
   constructor(
     @Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase,
+    private readonly operationLogs: OperationLogsService,
   ) {}
 
   /** 客户归属校验：管理员=全部（含公海）；员工=仅自己名下 */
@@ -50,7 +52,7 @@ export class FollowUpsService {
     return rows.map((row) => this.toFollowUpDto(row, customerName));
   }
 
-  async create(dto: CreateFollowUpDto, employeeId: string, isAdmin: boolean): Promise<FollowUp> {
+  async create(dto: CreateFollowUpDto, employeeId: string, isAdmin: boolean, employeeName: string): Promise<FollowUp> {
     const { customerId, content, result, followAt } = dto;
 
     const customerList = await this.db
@@ -84,6 +86,15 @@ export class FollowUpsService {
     });
 
     this.logger.log(`新增跟进记录成功 customerId=${customerId}`);
+    void this.operationLogs.record({
+      employeeId,
+      employeeName,
+      action: 'followup',
+      targetType: 'followup',
+      targetId: customerId,
+      targetName: customerName,
+      detail: `为客户「${customerName}」新增跟进：${content.slice(0, 80)}`,
+    });
     return this.toFollowUpDto(createdList[0], customerName);
   }
 

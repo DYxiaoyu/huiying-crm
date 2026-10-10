@@ -59,6 +59,47 @@ export interface Customer {
   nextFollowAt: string | null;
   /** 客户附件（报价单/截图等） */
   attachments: CustomerAttachment[];
+  /** 软删除时间 ISO（回收站内非空） */
+  deletedAt: string | null;
+}
+
+/** 客户多联系人 */
+export interface CustomerContact {
+  id: string;
+  customerId: string;
+  name: string;
+  position: string | null;
+  phone: string | null;
+  wechat: string | null;
+  createdAt: string;
+}
+
+/** 操作日志（谁在什么时间做了什么） */
+export interface OperationLog {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  /** create/update/delete/restore/purge/assign/followup/contact_add/contact_update/contact_delete */
+  action: string;
+  /** customer/followup/contact */
+  targetType: string;
+  targetId: string;
+  targetName: string;
+  detail: string | null;
+  createdAt: string;
+}
+
+export interface OperationLogListQuery {
+  page?: number;
+  pageSize?: number;
+  employeeId?: string;
+}
+
+export interface OperationLogListResponse {
+  items: OperationLog[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface FollowUp {
@@ -86,6 +127,8 @@ export interface CustomerListQuery {
   timeRange?: TimeRange;
   /** 只显示"下次跟进已到期"的客户 */
   dueSoon?: boolean;
+  /** 只看回收站（已软删除） */
+  trashOnly?: boolean;
 }
 
 export interface CustomerListResponse {
@@ -112,6 +155,22 @@ export interface CreateCustomerDto {
   expectedAmount?: number;
   /** 下次跟进时间 ISO（可空） */
   nextFollowAt?: string | null;
+}
+
+/** 新增客户联系人 */
+export interface CreateContactDto {
+  name: string;
+  position?: string;
+  phone?: string;
+  wechat?: string;
+}
+
+/** 更新客户联系人 */
+export interface UpdateContactDto {
+  name?: string;
+  position?: string;
+  phone?: string;
+  wechat?: string;
 }
 
 export interface UpdateCustomerDto {

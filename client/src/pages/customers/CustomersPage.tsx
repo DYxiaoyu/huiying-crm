@@ -19,6 +19,7 @@ import {
   CheckSquare,
   Square,
   X,
+  RotateCcw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@lark-apaas/client-toolkit/logger';
@@ -235,6 +236,7 @@ const CustomersPage = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [dueSoon, setDueSoon] = useState(searchParams.get('dueSoon') === '1');
+  const [trashOnly, setTrashOnly] = useState(searchParams.get('trash') === '1');
 
   const [items, setItems] = useState<Customer[]>([]);
   const [total, setTotal] = useState(0);
@@ -244,6 +246,7 @@ const CustomersPage = () => {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -289,6 +292,7 @@ const CustomersPage = () => {
         tag: tag || undefined,
         timeRange: timeRange || undefined,
         dueSoon: dueSoon || undefined,
+        trashOnly: trashOnly || undefined,
       });
       setItems(res.items);
       setTotal(res.total);
@@ -297,7 +301,7 @@ const CustomersPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, stage, sortBy, sortOrder, favoriteOnly, tag, timeRange, dueSoon]);
+  }, [page, pageSize, keyword, stage, sortBy, sortOrder, favoriteOnly, tag, timeRange, dueSoon, trashOnly]);
 
   useEffect(() => {
     void fetchList();
@@ -422,6 +426,27 @@ const CustomersPage = () => {
     setDeleteDialogOpen(true);
   };
 
+  /** 回收站：恢复客户 */
+  const handleRestoreClick = async (id: string) => {
+    setDeleting(true);
+    try {
+      await customersApi.restoreCustomer(id);
+      toast.success('已从回收站恢复');
+      void fetchList();
+    } catch (error) {
+      logger.error('恢复客户失败', error as Error);
+      toast.error('恢复失败，请重试');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  /** 回收站：彻底删除（不可恢复） */
+  const handlePurgeClick = (id: string) => {
+    setDeletingId(id);
+    setPurgeDialogOpen(true);
+  };
+
   const handleDeleteConfirm = async () => {
     if (!deletingId) return;
     setDeleting(true);
@@ -436,6 +461,27 @@ const CustomersPage = () => {
       }
     } catch (error) {
       logger.error('删除客户失败', error as Error);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  /** 回收站：彻底删除 */
+  const handlePurgeConfirm = async () => {
+    if (!deletingId) return;
+    setDeleting(true);
+    try {
+      await customersApi.purgeCustomer(deletingId);
+      setPurgeDialogOpen(false);
+      setDeletingId(null);
+      if (items.length === 1 && page > 1) {
+        setPage(page - 1);
+      } else {
+        void fetchList();
+      }
+    } catch (error) {
+      logger.error('彻底删除客户失败', error as Error);
+      toast.error('彻底删除失败，请重试');
     } finally {
       setDeleting(false);
     }
@@ -811,6 +857,29 @@ const CustomersPage = () => {
           <span className={`size-2 rounded-full ${dueSoon ? 'bg-[#DC2626]' : 'bg-[#98A2B3]'}`} />
           <span>跟进到期</span>
         </button>
+
+        {/* 回收站 */}
+        <button
+          type="button"
+          onClick={() => {
+            setTrashOnly((v) => {
+              const next = !v;
+              if (next) {
+                setSelectedIds([]);
+                setPage(1);
+              }
+              return next;
+            });
+          }}
+          className={`shrink-0 inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border text-sm font-medium transition-all ${
+            trashOnly
+              ? 'border-[#475569] bg-[#E2E8F0] text-[#334155]'
+              : 'border-[#E4E7EC] bg-white text-[#5B6773] hover:bg-[#F7F9FA]'
+          }`}
+        >
+          <Trash2 className={`size-4 ${trashOnly ? 'text-[#334155]' : 'text-[#98A2B3]'}`} />
+          <span>回收站</span>
+        </button>
       </div>
 
       {/* 列表区 - 卡片式表格 */}
@@ -826,9 +895,11 @@ const CustomersPage = () => {
                 <EmptyMedia variant="icon">
                   <Search className="size-6" />
                 </EmptyMedia>
-                <EmptyTitle>暂无客户</EmptyTitle>
+                <EmptyTitle>{trashOnly ? '回收站是空的' : '暂无客户'}</EmptyTitle>
                 <EmptyDescription>
-                  点击下方按钮添加第一位客户
+                  {trashOnly
+                    ? '删除的客户会在这里保留 30 天，超期自动彻底清除'
+                    : '点击下方按钮添加第一位客户'}
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
@@ -839,7 +910,7 @@ const CustomersPage = () => {
         ) : (
           <>
             {/* ===== 批量操作条 ===== */}
-            {selectedIds.length > 0 && (
+            {selectedIds.length > 0 && !trashOnly && (
               <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 px-4 py-2.5 bg-[#F0F9F6] border-b border-[#CDE8DE]">
                 <span className="text-[13px] font-medium text-[#0E7C6B]">
                   已选 {selectedIds.length} 条
@@ -883,16 +954,18 @@ const CustomersPage = () => {
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-[#E4E7EC] hover:bg-transparent bg-[#FAFBFC]">
-                  <TableHead className="px-4 py-3 w-10">
-                    <button
-                      type="button"
-                      onClick={toggleSelectAll}
-                      className={`transition-colors ${allSelected ? 'text-[#0E7C6B]' : 'text-[#98A2B3] hover:text-[#0E7C6B]'}`}
-                      aria-label={allSelected ? '取消全选' : '全选'}
-                    >
-                      {allSelected ? <CheckSquare className="size-4" /> : <Square className="size-4" />}
-                    </button>
-                  </TableHead>
+                  {!trashOnly && (
+                    <TableHead className="px-4 py-3 w-10">
+                      <button
+                        type="button"
+                        onClick={toggleSelectAll}
+                        className={`transition-colors ${allSelected ? 'text-[#0E7C6B]' : 'text-[#98A2B3] hover:text-[#0E7C6B]'}`}
+                        aria-label={allSelected ? '取消全选' : '全选'}
+                      >
+                        {allSelected ? <CheckSquare className="size-4" /> : <Square className="size-4" />}
+                      </button>
+                    </TableHead>
+                  )}
                   <TableHead className="px-4 py-3 text-xs font-medium text-[#98A2B3]">
                     客户姓名
                   </TableHead>
@@ -935,16 +1008,18 @@ const CustomersPage = () => {
                             : 'hover:bg-[#F7F9FA]'
                       }`}
                     >
-                      <TableCell className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() => toggleSelect(customer.id)}
-                          className={`transition-colors ${isSelected ? 'text-[#0E7C6B]' : 'text-[#98A2B3] hover:text-[#0E7C6B]'}`}
-                          aria-label={isSelected ? '取消选择' : '选择'}
-                        >
-                          {isSelected ? <CheckSquare className="size-4" /> : <Square className="size-4" />}
-                        </button>
-                      </TableCell>
+                      {!trashOnly && (
+                        <TableCell className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleSelect(customer.id)}
+                            className={`transition-colors ${isSelected ? 'text-[#0E7C6B]' : 'text-[#98A2B3] hover:text-[#0E7C6B]'}`}
+                            aria-label={isSelected ? '取消选择' : '选择'}
+                          >
+                            {isSelected ? <CheckSquare className="size-4" /> : <Square className="size-4" />}
+                          </button>
+                        </TableCell>
+                      )}
                       <TableCell className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <button
@@ -1052,7 +1127,7 @@ const CustomersPage = () => {
                           >
                             <Eye className="size-4" />
                           </Button>
-                          {employee?.role === 'admin' && (
+                          {employee?.role === 'admin' && !trashOnly && (
                             <Button
                               variant="ghost"
                               size="icon"
@@ -1063,24 +1138,49 @@ const CustomersPage = () => {
                               <UserPlus className="size-4" />
                             </Button>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(customer)}
-                            title="编辑"
-                            className="hover:bg-[#F2F4F7]"
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteClick(customer.id)}
-                            title="删除"
-                            className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
+                          {trashOnly ? (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => void handleRestoreClick(customer.id)}
+                                title="恢复"
+                                className="hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700"
+                              >
+                                <RotateCcw className="size-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => void handlePurgeClick(customer.id)}
+                                title="彻底删除"
+                                className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEdit(customer)}
+                                title="编辑"
+                                className="hover:bg-[#F2F4F7]"
+                              >
+                                <Pencil className="size-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteClick(customer.id)}
+                                title="删除"
+                                className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1110,14 +1210,16 @@ const CustomersPage = () => {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => toggleSelect(customer.id)}
-                            className={`transition-colors ${isSelected ? 'text-[#0E7C6B]' : 'text-[#98A2B3] hover:text-[#0E7C6B]'}`}
-                            aria-label={isSelected ? '取消选择' : '选择'}
-                          >
-                            {isSelected ? <CheckSquare className="size-4" /> : <Square className="size-4" />}
-                          </button>
+                          {!trashOnly && (
+                            <button
+                              type="button"
+                              onClick={() => toggleSelect(customer.id)}
+                              className={`transition-colors ${isSelected ? 'text-[#0E7C6B]' : 'text-[#98A2B3] hover:text-[#0E7C6B]'}`}
+                              aria-label={isSelected ? '取消选择' : '选择'}
+                            >
+                              {isSelected ? <CheckSquare className="size-4" /> : <Square className="size-4" />}
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleToggleFavorite(customer)}
@@ -1208,22 +1310,26 @@ const CustomersPage = () => {
                       </div>
                     </div>
                     <div className="mt-3 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleUploadImage(customer)}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-[13px] font-medium text-[#0E7C6B] bg-[#E5F4EC] active:bg-[#0E7C6B] active:text-white transition-all"
-                      >
-                        <ImagePlus className="size-4" />
-                        上传图片
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handlePreviewImage(customer)}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-[13px] font-medium text-[#2563EB] bg-[#E8EFFD] active:bg-[#2563EB] active:text-white transition-all"
-                      >
-                        <Images className="size-4" />
-                        预览图片
-                      </button>
+                      {!trashOnly && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleUploadImage(customer)}
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-[13px] font-medium text-[#0E7C6B] bg-[#E5F4EC] active:bg-[#0E7C6B] active:text-white transition-all"
+                          >
+                            <ImagePlus className="size-4" />
+                            上传图片
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePreviewImage(customer)}
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-[13px] font-medium text-[#2563EB] bg-[#E8EFFD] active:bg-[#2563EB] active:text-white transition-all"
+                          >
+                            <Images className="size-4" />
+                            预览图片
+                          </button>
+                        </>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleView(customer.id)}
@@ -1231,20 +1337,41 @@ const CustomersPage = () => {
                       >
                         <Eye className="size-4" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(customer)}
-                        className="inline-flex items-center justify-center size-9 rounded-lg text-[#5B6773] bg-[#F2F4F7] active:bg-[#E4E7EC] transition-all"
-                      >
-                        <Pencil className="size-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteClick(customer.id)}
-                        className="inline-flex items-center justify-center size-9 rounded-lg text-rose-600 bg-rose-50 active:bg-rose-100 transition-all"
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
+                      {trashOnly ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void handleRestoreClick(customer.id)}
+                            className="inline-flex items-center justify-center size-9 rounded-lg text-emerald-600 bg-emerald-50 active:bg-emerald-100 transition-all"
+                          >
+                            <RotateCcw className="size-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handlePurgeClick(customer.id)}
+                            className="inline-flex items-center justify-center size-9 rounded-lg text-rose-600 bg-rose-50 active:bg-rose-100 transition-all"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleEdit(customer)}
+                            className="inline-flex items-center justify-center size-9 rounded-lg text-[#5B6773] bg-[#F2F4F7] active:bg-[#E4E7EC] transition-all"
+                          >
+                            <Pencil className="size-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteClick(customer.id)}
+                            className="inline-flex items-center justify-center size-9 rounded-lg text-rose-600 bg-rose-50 active:bg-rose-100 transition-all"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
@@ -1448,7 +1575,7 @@ const CustomersPage = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>批量删除</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除选中的 {selectedIds.length} 条客户吗？此操作不可撤销。
+              确定将选中的 {selectedIds.length} 条客户移入回收站吗？30 天内可在回收站恢复，超期将自动彻底清除。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1458,7 +1585,7 @@ const CustomersPage = () => {
               className="bg-rose-600 hover:bg-rose-700 text-white"
               disabled={batchSubmitting}
             >
-              {batchSubmitting ? '删除中...' : '删除'}
+              {batchSubmitting ? '删除中...' : '移入回收站'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1473,7 +1600,7 @@ const CustomersPage = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除该客户吗？此操作不可撤销。
+              确定将该客户移入回收站吗？30 天内可在回收站恢复，超期将自动彻底清除。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1483,7 +1610,32 @@ const CustomersPage = () => {
               className="bg-rose-600 hover:bg-rose-700 text-white"
               disabled={deleting}
             >
-              {deleting ? '删除中...' : '删除'}
+              {deleting ? '删除中...' : '移入回收站'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 彻底删除确认（回收站） */}
+      <AlertDialog
+        open={purgeDialogOpen}
+        onOpenChange={setPurgeDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>彻底删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要彻底删除该客户吗？此操作不可撤销，客户的跟进记录与联系人将一并删除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handlePurgeConfirm}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+              disabled={deleting}
+            >
+              {deleting ? '删除中...' : '彻底删除'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
