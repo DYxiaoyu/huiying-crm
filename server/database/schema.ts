@@ -1,7 +1,7 @@
 /* eslint-disable */
 /** auto generated, do not edit */
 import { sql } from 'drizzle-orm';
-import { foreignKey, index, pgTable, text, uniqueIndex, uuid, varchar, customType, boolean } from "drizzle-orm/pg-core"
+import { foreignKey, index, pgTable, text, uniqueIndex, uuid, varchar, customType, boolean, numeric } from "drizzle-orm/pg-core"
 
 export const customTimestamptz = customType<{
   data: Date;
@@ -177,6 +177,8 @@ export const customers = pgTable("customers", {
   remark: text("remark"),
   tags: text("tags"),
   isFavorite: boolean("is_favorite").notNull().default(false),
+  dealAmount: numeric("deal_amount", { precision: 14, scale: 2 }),
+  expectedAmount: numeric("expected_amount", { precision: 14, scale: 2 }),
   owner: uuid("owner").default(sql`CASE
     WHEN (current_setting('app.user_id'::text, true) = ''::text) THEN NULL`),
   employeeId: uuid("employee_id"),

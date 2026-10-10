@@ -289,6 +289,8 @@ export function CustomerDetailDrawer({
                     ['电话', customer.phone || '-'],
                     ['公司', customer.company || '-'],
                     ['来源', customer.source || '-'],
+                    ['成交金额', customer.dealAmount ? `¥${Number(customer.dealAmount).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}` : '-'],
+                    ['预计成交金额', customer.expectedAmount ? `¥${Number(customer.expectedAmount).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}` : '-'],
                     ['备注', customer.remark || '-'],
                     ['最近跟进', formatDateTime(customer.lastFollowAt)],
                     ['创建时间', formatDateTime(customer.createdAt)],

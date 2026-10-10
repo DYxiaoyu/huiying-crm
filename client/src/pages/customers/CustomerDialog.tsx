@@ -53,6 +53,14 @@ const customerSchema = z.object({
   }),
   remark: z.string().optional(),
   tags: z.array(z.string()).optional(),
+  dealAmount: z.preprocess(
+    (v) => (v === '' || v === undefined || v === null ? undefined : Number(v)),
+    z.number().optional(),
+  ),
+  expectedAmount: z.preprocess(
+    (v) => (v === '' || v === undefined || v === null ? undefined : Number(v)),
+    z.number().optional(),
+  ),
 });
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
@@ -171,6 +179,8 @@ export function CustomerDialog({
       stage: 'new',
       remark: '',
       tags: [],
+      dealAmount: '',
+      expectedAmount: '',
     },
   });
 
@@ -188,6 +198,8 @@ export function CustomerDialog({
           stage: customer.stage,
           remark: customer.remark ?? '',
           tags: customer.tags ?? [],
+          dealAmount: customer.dealAmount ?? '',
+          expectedAmount: customer.expectedAmount ?? '',
         });
       } else {
         form.reset({
@@ -198,6 +210,8 @@ export function CustomerDialog({
           stage: 'new',
           remark: '',
           tags: [],
+          dealAmount: '',
+          expectedAmount: '',
         });
       }
       setDuplicateResult(null);
@@ -291,6 +305,8 @@ export function CustomerDialog({
           stage: values.stage,
           remark: values.remark || undefined,
           tags: values.tags ?? [],
+          dealAmount: values.dealAmount ?? null,
+          expectedAmount: values.expectedAmount ?? null,
         };
         await customersApi.update(customer.id, dto);
       } else {
@@ -302,6 +318,8 @@ export function CustomerDialog({
           stage: values.stage,
           remark: values.remark || undefined,
           tags: values.tags ?? [],
+          dealAmount: values.dealAmount ?? undefined,
+          expectedAmount: values.expectedAmount ?? undefined,
         };
         await customersApi.create(dto);
       }
@@ -409,6 +427,50 @@ export function CustomerDialog({
                 </FormItem>
               )}
             />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="dealAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>成交金额（元）</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="如：12000"
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(e.target.value)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="expectedAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>预计成交金额（元）</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="如：30000"
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(e.target.value)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}

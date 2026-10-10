@@ -177,6 +177,8 @@ export class CustomersService {
         stage: dto.stage ?? 'new',
         remark: dto.remark ?? null,
         tags: toTagsJson(dto.tags),
+        dealAmount: dto.dealAmount !== undefined && dto.dealAmount !== null ? String(dto.dealAmount) : null,
+        expectedAmount: dto.expectedAmount !== undefined && dto.expectedAmount !== null ? String(dto.expectedAmount) : null,
         employeeId,
       })
       .returning();
@@ -203,6 +205,8 @@ export class CustomersService {
     if (dto.remark !== undefined) patch.remark = dto.remark;
     if (dto.isFavorite !== undefined) patch.isFavorite = dto.isFavorite;
     if (dto.tags !== undefined) patch.tags = toTagsJson(dto.tags);
+    if (dto.dealAmount !== undefined) patch.dealAmount = dto.dealAmount === null ? null : String(dto.dealAmount);
+    if (dto.expectedAmount !== undefined) patch.expectedAmount = dto.expectedAmount === null ? null : String(dto.expectedAmount);
 
     if (Object.keys(patch).length === 0) {
       throw new BadRequestException('未提供可更新字段');
@@ -698,6 +702,12 @@ export class CustomersService {
       lastFollowAt: lastFollowAt ? lastFollowAt.toISOString() : null,
       isOverdue,
       isFavorite: row.isFavorite ?? false,
+      dealAmount: row.dealAmount !== null && row.dealAmount !== undefined
+        ? Number(row.dealAmount)
+        : null,
+      expectedAmount: row.expectedAmount !== null && row.expectedAmount !== undefined
+        ? Number(row.expectedAmount)
+        : null,
     };
   }
 }

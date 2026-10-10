@@ -120,6 +120,9 @@ async function ensureSchema(client: postgres.Sql): Promise<void> {
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_favorite boolean NOT NULL DEFAULT false;
     -- 客户标签（JSON 数组字符串，老表升级用，幂等）
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS tags text;
+    -- 成交金额 / 预计成交金额（元，老表升级用，幂等）
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS deal_amount numeric(14,2);
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS expected_amount numeric(14,2);
   `);
 }
 

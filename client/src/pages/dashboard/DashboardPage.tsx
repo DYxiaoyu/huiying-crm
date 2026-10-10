@@ -35,7 +35,7 @@ const STAGE_TAG_STYLES: Record<CustomerStage, { bg: string; color: string }> = {
 
 interface StatCardProps {
   label: string;
-  value: number;
+  value: number | string;
   color: string;
   onClick?: () => void;
 }
@@ -58,13 +58,18 @@ function StatCard({ label, value, color, onClick }: StatCardProps) {
         {label}
       </div>
       <div
-        className="text-[24px] md:text-[26px] font-bold mt-1"
+        className="text-[20px] md:text-[24px] font-bold mt-1 break-all"
         style={{ color }}
       >
         {value}
       </div>
     </div>
   );
+}
+
+function formatMoney(n: number): string {
+  const v = n || 0;
+  return '¥' + v.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
 }
 
 function formatDateTime(iso: string): string {
@@ -118,7 +123,9 @@ export default function DashboardPage() {
     1,
   );
 
-  const statCards: { label: string; value: number; color: string; stage?: CustomerStage }[] = [
+  const statCards: { label: string; value: number | string; color: string; stage?: CustomerStage }[] = [
+    { label: '总成交额', value: formatMoney(stats.totalDealAmount), color: '#059669' },
+    { label: '总预计成交额', value: formatMoney(stats.totalExpectedAmount), color: '#0891B2' },
     { label: '客户总数', value: stats.total, color: '#1D2733' },
     { label: '待跟进', value: stats.overdue, color: '#DC2626' },
     { label: '新客户', value: stats.newCustomers, color: '#64748B', stage: 'new' },
@@ -267,6 +274,113 @@ export default function DashboardPage() {
               );
             })}
           </div>
+        </div>
+      </div>
+
+      {/* 成交漏斗 */}
+      <div
+        style={{
+          background: '#fff',
+          border: '1px solid #E4E7EC',
+          borderRadius: '10px',
+          boxShadow:
+            '0 1px 3px rgba(16,24,40,.08), 0 1px 2px rgba(16,24,40,.04)',
+        }}
+      >
+        <div
+          style={{
+            padding: '14px 18px',
+            borderBottom: '1px solid #E4E7EC',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontWeight: 600,
+          }}
+        >
+          <span>成交漏斗</span>
+          <span style={{ fontSize: '12px', color: '#98A2B3', fontWeight: 400 }}>
+            新客户 → 已联系 → 跟进中 → 已成交
+          </span>
+        </div>
+        <div style={{ padding: '18px' }}>
+          {(() => {
+            const funnelStages: { stage: CustomerStage; label: string; color: string }[] = [
+              { stage: 'new', label: '新客户', color: '#64748B' },
+              { stage: 'contacted', label: '已联系', color: '#2563EB' },
+              { stage: 'following', label: '跟进中', color: '#D97706' },
+              { stage: 'closed', label: '已成交', color: '#059669' },
+            ];
+            const counts = funnelStages.map(
+              (f) => stageDistribution.find((s) => s.stage === f.stage)?.count ?? 0,
+            );
+            const maxCount = Math.max(...counts, 1);
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {funnelStages.map((f, i) => {
+                  const count = counts[i];
+                  const widthPct = Math.max((count / maxCount) * 100, 8);
+                  const rate =
+                    i > 0 && counts[i - 1] > 0
+                      ? Math.round((count / counts[i - 1]) * 100)
+                      : null;
+                  return (
+                    <div
+                      key={f.stage}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: `${widthPct}%`,
+                            height: '36px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: f.color,
+                            opacity: 0.92,
+                            clipPath: 'polygon(0 0, 100% 0, 92% 100%, 8% 100%)',
+                            color: '#fff',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            minWidth: '60px',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {count}
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          width: '92px',
+                          flexShrink: 0,
+                          fontSize: '12px',
+                          color: '#5B6773',
+                          textAlign: 'left',
+                        }}
+                      >
+                        {f.label}
+                        {rate !== null && (
+                          <span style={{ color: '#98A2B3', marginLeft: '4px' }}>
+                            {rate}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       </div>
 

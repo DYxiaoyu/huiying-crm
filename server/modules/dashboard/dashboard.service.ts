@@ -22,6 +22,8 @@ interface CustomerBasic {
   id: string;
   stage: string;
   createdAt: Date;
+  dealAmount: string | number | null;
+  expectedAmount: string | number | null;
 }
 
 interface LatestFollowRow {
@@ -57,6 +59,8 @@ export class DashboardService {
         id: customers.id,
         stage: customers.stage,
         createdAt: customers.createdAt,
+        dealAmount: customers.dealAmount,
+        expectedAmount: customers.expectedAmount,
       })
       .from(customers)
       .where(isAdmin ? undefined : eq(customers.employeeId, employeeId));
@@ -75,6 +79,15 @@ export class DashboardService {
 
     const overdue: number = await this.countOverdue(employeeId, isAdmin, allCustomers);
 
+    let totalDealAmount: number = 0;
+    let totalExpectedAmount: number = 0;
+    for (const c of allCustomers) {
+      const deal = c.dealAmount === null || c.dealAmount === undefined ? 0 : Number(c.dealAmount);
+      const expected = c.expectedAmount === null || c.expectedAmount === undefined ? 0 : Number(c.expectedAmount);
+      totalDealAmount += deal;
+      totalExpectedAmount += expected;
+    }
+
     const stats: DashboardStats = {
       total,
       overdue,
@@ -86,6 +99,8 @@ export class DashboardService {
       lost: stageCounts.lost,
       invalid: stageCounts.invalid || 0,
       duplicate: stageCounts.duplicate || 0,
+      totalDealAmount,
+      totalExpectedAmount,
     };
 
     const stageDistribution: StageDistribution[] = STAGE_ORDER.map((stage: CustomerStage) => ({

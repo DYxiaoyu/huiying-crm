@@ -38,6 +38,10 @@ export interface Customer {
   lastFollowAt: string | null;
   isOverdue: boolean;
   isFavorite: boolean;
+  /** 成交金额（元） */
+  dealAmount: number | null;
+  /** 预计成交金额（元） */
+  expectedAmount: number | null;
 }
 
 export interface FollowUp {
@@ -85,6 +89,8 @@ export interface CreateCustomerDto {
   stage?: CustomerStage;
   remark?: string;
   tags?: string[];
+  dealAmount?: number;
+  expectedAmount?: number;
 }
 
 export interface UpdateCustomerDto {
@@ -96,6 +102,8 @@ export interface UpdateCustomerDto {
   remark?: string;
   isFavorite?: boolean;
   tags?: string[];
+  dealAmount?: number | null;
+  expectedAmount?: number | null;
 }
 
 export interface BatchUpdateStageDto {
@@ -163,6 +171,10 @@ export interface DashboardStats {
   lost: number;
   invalid: number;
   duplicate: number;
+  /** 总成交金额（元） */
+  totalDealAmount: number;
+  /** 总预计成交金额（元） */
+  totalExpectedAmount: number;
 }
 
 export interface StageDistribution {
