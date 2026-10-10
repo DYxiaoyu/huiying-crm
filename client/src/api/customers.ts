@@ -170,7 +170,8 @@ export async function downloadCsv(
       s ? `/api/customers/export/csv?${s}` : '/api/customers/export/csv',
       { responseType: 'blob' }
     );
-    saveBlob(data, 'customers.csv');
+    const date = new Date().toISOString().slice(0, 10);
+    saveBlob(data, `customers-${date}.csv`);
   } catch (error) {
     logger.error('导出客户 CSV 失败', error as Error);
     throw error;

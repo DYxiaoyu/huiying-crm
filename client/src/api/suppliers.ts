@@ -142,7 +142,8 @@ export async function downloadCsv(
       s ? `/api/suppliers/export/csv?${s}` : '/api/suppliers/export/csv',
       { responseType: 'blob' }
     );
-    saveBlob(data, 'supplier-products.csv');
+    const date = new Date().toISOString().slice(0, 10);
+    saveBlob(data, `supplier-products-${date}.csv`);
   } catch (error) {
     logger.error('导出供应商商品 CSV 失败', error as Error);
     throw error;
