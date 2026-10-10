@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { DRIZZLE_DATABASE } from '@server/database/database.module';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { eq, desc, and, or, isNull } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import { followUps, customers } from '@server/database/schema';
 import type { FollowUp, CreateFollowUpDto } from '@shared/api.interface';
 
@@ -19,10 +19,10 @@ export class FollowUpsService {
     @Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase,
   ) {}
 
-  /** 客户归属校验：管理员=全部；员工=自己的 + 网页客户公海 */
+  /** 客户归属校验：管理员=全部（含公海）；员工=仅自己名下 */
   private customerAccess(employeeId: string, isAdmin: boolean) {
     if (isAdmin) return [];
-    return [or(eq(customers.employeeId, employeeId), isNull(customers.employeeId))];
+    return [eq(customers.employeeId, employeeId)];
   }
 
   async listByCustomer(customerId: string, employeeId: string, isAdmin: boolean): Promise<FollowUp[]> {
@@ -42,7 +42,7 @@ export class FollowUpsService {
       .from(followUps)
       .where(and(
         eq(followUps.customerId, customerId),
-        ...(isAdmin ? [] : [or(eq(followUps.employeeId, employeeId), isNull(followUps.employeeId))]),
+        ...(isAdmin ? [] : [eq(followUps.employeeId, employeeId)]),
       ))
       .orderBy(desc(followUps.followAt))
       .limit(100);

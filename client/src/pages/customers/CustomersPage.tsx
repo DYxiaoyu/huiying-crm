@@ -14,6 +14,7 @@ import {
   FileUp,
   FileText,
   Globe,
+  UserPlus,
   Tag as TagIcon,
   CheckSquare,
   Square,
@@ -22,6 +23,7 @@ import {
 import { toast } from 'sonner';
 import { logger } from '@lark-apaas/client-toolkit/logger';
 import { showConfirm } from '@lark-apaas/client-toolkit';
+import { axiosForBackend } from '@lark-apaas/client-toolkit/utils/getAxiosForBackend';
 import { useAuth } from '../../contexts/AuthContext';
 
 import { Button } from '@/components/ui/button';
@@ -74,6 +76,7 @@ import { CustomerDialog } from './CustomerDialog';
 import { CustomerDetailDrawer } from './CustomerDetailDrawer';
 import { PageJump } from '@/components/PageJump';
 import type {
+  AdminEmployeeItem,
   Customer,
   CustomerStage,
   ImportCustomerItem,
@@ -246,6 +249,13 @@ const CustomersPage = () => {
 
   // 详情抽屉
   const [drawerId, setDrawerId] = useState<string | null>(null);
+
+  // 客户分配（管理员）
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [assignTarget, setAssignTarget] = useState<Customer | null>(null);
+  const [assignEmployeeId, setAssignEmployeeId] = useState('');
+  const [assignEmployees, setAssignEmployees] = useState<AdminEmployeeItem[]>([]);
+  const [assignSubmitting, setAssignSubmitting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -457,6 +467,37 @@ const CustomersPage = () => {
     } catch (error) {
       logger.error('更新收藏状态失败', error as Error);
       toast.error('操作失败，请重试');
+    }
+  };
+
+  /** 打开分配弹窗（管理员）：拉取员工列表 */
+  const openAssign = async (customer: Customer) => {
+    setAssignTarget(customer);
+    setAssignEmployeeId('');
+    setAssignDialogOpen(true);
+    try {
+      const { data } = await axiosForBackend.get<AdminEmployeeItem[]>('/api/admin/employees');
+      setAssignEmployees(data);
+    } catch (error) {
+      logger.error('获取员工列表失败', error as Error);
+      toast.error('员工列表加载失败，请重试');
+    }
+  };
+
+  /** 确认分配 */
+  const handleAssign = async () => {
+    if (!assignTarget || !assignEmployeeId) return;
+    setAssignSubmitting(true);
+    try {
+      await customersApi.assignCustomer(assignTarget.id, assignEmployeeId);
+      toast.success(`已将「${assignTarget.name}」分配给员工`);
+      setAssignDialogOpen(false);
+      void fetchList();
+    } catch (error) {
+      logger.error('分配客户失败', error as Error);
+      toast.error('分配失败，请重试');
+    } finally {
+      setAssignSubmitting(false);
     }
   };
 
@@ -975,6 +1016,17 @@ const CustomersPage = () => {
                           >
                             <Eye className="size-4" />
                           </Button>
+                          {employee?.role === 'admin' && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => void openAssign(customer)}
+                              title="分配给员工"
+                              className="hover:bg-[#F2F4F7]"
+                            >
+                              <UserPlus className="size-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -1296,9 +1348,54 @@ const CustomersPage = () => {
         </DialogContent>
       </Dialog>
 
+      {/* 分配客户（管理员） */}
+      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>分配客户</DialogTitle>
+            <DialogDescription>
+              将「{assignTarget?.name ?? ''}」分配给员工，分配后该员工即可查看和跟进此客户。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-[#344054]">选择员工</label>
+            <Select value={assignEmployeeId} onValueChange={setAssignEmployeeId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="请选择接收客户员工" />
+              </SelectTrigger>
+              <SelectContent>
+                {assignEmployees
+                  .filter((emp) => emp.role !== 'admin')
+                  .map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.name}（{emp.username}）
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAssignDialogOpen(false)}
+              disabled={assignSubmitting}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              onClick={handleAssign}
+              disabled={!assignEmployeeId || assignSubmitting}
+            >
+              {assignSubmitting ? '分配中...' : '确认分配'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* 批量删除确认 */}
-      <AlertDialog open={batchDialog === 'delete'} onOpenChange={(o) => { if (!o) setBatchDialog(null); }}>
-        <AlertDialogContent>
+      <AlertDialog open={batchDialog === 'delete'} onOpenChange={(o) => { if (!o) setBatchDialog(null); }}>        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>批量删除</AlertDialogTitle>
             <AlertDialogDescription>

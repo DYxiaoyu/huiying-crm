@@ -227,6 +227,23 @@ export async function getTags(): Promise<TagStat[]> {
   }
 }
 
+/** 管理员将客户分配给指定员工（公海客户分配/转交） */
+export async function assignCustomer(
+  id: string,
+  employeeId: string
+): Promise<Customer> {
+  try {
+    const { data } = await axiosForBackend.post<Customer>(
+      `/api/customers/${id}/assign`,
+      { employeeId }
+    );
+    return data;
+  } catch (error) {
+    logger.error(`分配客户失败: ${id}`, error as Error);
+    throw error;
+  }
+}
+
 export async function batchUpdateStage(
   dto: BatchUpdateStageDto
 ): Promise<BatchResult> {

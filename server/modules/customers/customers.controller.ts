@@ -222,6 +222,15 @@ export class CustomersController {
     return this.customersService.importCustomers(body?.items ?? [], employee.id);
   }
 
+  @Post(':id/assign')
+  async assign(
+    @CurrentEmployee() employee: { id: string; role?: string },
+    @Param('id') id: string,
+    @Body() dto: { employeeId: string },
+  ): Promise<Customer> {
+    return this.customersService.assign(id, dto.employeeId, employee.id, employee.role === 'admin');
+  }
+
   @Get(':id')
   async detail(
     @CurrentEmployee() employee: { id: string; role?: string },

@@ -8,8 +8,8 @@ import {
 } from '@nestjs/common';
 import { DRIZZLE_DATABASE } from '@server/database/database.module';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { customers, followUps } from '@server/database/schema';
-import { eq, and, count, desc, asc, ilike, or, max, ne, inArray, isNull, gte } from 'drizzle-orm';
+import { customers, employees, followUps } from '@server/database/schema';
+import { eq, and, count, desc, asc, ilike, or, max, ne, inArray, gte } from 'drizzle-orm';
 import archiver from 'archiver';
 import type {
   Customer,
@@ -595,9 +595,13 @@ export class CustomersService {
   /**
    * 客户可见范围：管理员=全部；员工=自己添加的 + 网页客户（employeeId 为空，公海共享）
    */
+  /**
+   * 客户可见范围：管理员=全部（含公海无主客户）；员工=仅自己名下
+   * 公海客户（employeeId 为空）仅管理员可见，由管理员分配后员工可见
+   */
   private customerScope(isAdmin: boolean, employeeId: string) {
     if (isAdmin) return [];
-    return [or(eq(customers.employeeId, employeeId), isNull(customers.employeeId))];
+    return [eq(customers.employeeId, employeeId)];
   }
 
   /** 构建客户列表/导出共用的筛选条件 */
@@ -634,11 +638,44 @@ export class CustomersService {
   }
 
   /**
-   * 跟进记录可见范围：管理员=全部；员工=自己的 + 网页客户跟进
+   * 跟进记录可见范围：管理员=全部；员工=仅自己的
    */
   private followUpScope(isAdmin: boolean, employeeId: string) {
     if (isAdmin) return [];
-    return [or(eq(followUps.employeeId, employeeId), isNull(followUps.employeeId))];
+    return [eq(followUps.employeeId, employeeId)];
+  }
+
+  /** 管理员将客户分配给指定员工（公海客户领取/转交） */
+  async assign(id: string, targetEmployeeId: string, operatorId: string, isAdmin: boolean): Promise<Customer> {
+    if (!isAdmin) {
+      throw new ForbiddenException('仅管理员可分配客户');
+    }
+    if (!targetEmployeeId || !targetEmployeeId.trim()) {
+      throw new BadRequestException('请选择目标员工');
+    }
+    const customerRows = await this.db
+      .select({ id: customers.id })
+      .from(customers)
+      .where(eq(customers.id, id))
+      .limit(1);
+    if (customerRows.length === 0) {
+      throw new NotFoundException('客户不存在');
+    }
+    const empRows = await this.db
+      .select({ id: employees.id })
+      .from(employees)
+      .where(eq(employees.id, targetEmployeeId.trim()))
+      .limit(1);
+    if (empRows.length === 0) {
+      throw new BadRequestException('目标员工不存在');
+    }
+    const updated = await this.db
+      .update(customers)
+      .set({ employeeId: targetEmployeeId.trim(), updatedAt: new Date() })
+      .where(eq(customers.id, id))
+      .returning();
+    this.logger.log(`客户 ${id} 已由 ${operatorId} 分配给员工 ${targetEmployeeId}`);
+    return this.toCustomer(updated[0], null, false);
   }
 
   private toCustomer(

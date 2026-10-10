@@ -50,6 +50,7 @@ export class DashboardService {
 
   async getStats(employee: Employee): Promise<DashboardResponse> {
     const employeeId: string = employee.id;
+    const isAdmin: boolean = employee.role === 'admin';
 
     const allCustomers: CustomerBasic[] = await this.db
       .select({
@@ -58,7 +59,7 @@ export class DashboardService {
         createdAt: customers.createdAt,
       })
       .from(customers)
-      .where(eq(customers.employeeId, employeeId));
+      .where(isAdmin ? undefined : eq(customers.employeeId, employeeId));
 
     const total: number = allCustomers.length;
 
@@ -72,7 +73,7 @@ export class DashboardService {
       }
     }
 
-    const overdue: number = await this.countOverdue(employeeId, allCustomers);
+    const overdue: number = await this.countOverdue(employeeId, isAdmin, allCustomers);
 
     const stats: DashboardStats = {
       total,
@@ -93,7 +94,7 @@ export class DashboardService {
       count: stageCounts[stage],
     }));
 
-    const recentFollowUps: FollowUp[] = await this.getRecentFollowUps(employeeId);
+    const recentFollowUps: FollowUp[] = await this.getRecentFollowUps(employeeId, isAdmin);
 
     this.logger.log(`概览统计查询成功, 员工: ${employee.username}, 客户数: ${total}`);
 
@@ -102,6 +103,7 @@ export class DashboardService {
 
   private async countOverdue(
     employeeId: string,
+    isAdmin: boolean,
     allCustomers: CustomerBasic[],
   ): Promise<number> {
     if (allCustomers.length === 0) {
@@ -116,7 +118,7 @@ export class DashboardService {
         maxFollowAt: max(followUps.followAt),
       })
       .from(followUps)
-      .where(eq(followUps.employeeId, employeeId))
+      .where(isAdmin ? undefined : eq(followUps.employeeId, employeeId))
       .groupBy(followUps.customerId);
 
     const latestFollowMap = new Map<string, Date>();
@@ -138,7 +140,7 @@ export class DashboardService {
     return overdueCount;
   }
 
-  private async getRecentFollowUps(employeeId: string): Promise<FollowUp[]> {
+  private async getRecentFollowUps(employeeId: string, isAdmin: boolean): Promise<FollowUp[]> {
     const rows: FollowUpWithCustomer[] = await this.db
       .select({
         id: followUps.id,
@@ -152,7 +154,7 @@ export class DashboardService {
       })
       .from(followUps)
       .leftJoin(customers, eq(followUps.customerId, customers.id))
-      .where(eq(followUps.employeeId, employeeId))
+      .where(isAdmin ? undefined : eq(followUps.employeeId, employeeId))
       .orderBy(desc(followUps.followAt))
       .limit(8);
 
