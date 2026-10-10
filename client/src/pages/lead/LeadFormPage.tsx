@@ -171,8 +171,8 @@ export default function LeadFormPage() {
 
           <form onSubmit={submit} style={{ display: 'grid', gap: 14 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <Field label={T.name} required><input value={form.name} onChange={set('name')} placeholder={T.namePh} style={inp} /></Field>
-              <Field label={T.phone} required><input value={form.phone} onChange={set('phone')} placeholder={T.phonePh} style={inp} /></Field>
+              <Field label={T.name} required requiredText={T.required}><input value={form.name} onChange={set('name')} placeholder={T.namePh} style={inp} /></Field>
+              <Field label={T.phone} required requiredText={T.required}><input value={form.phone} onChange={set('phone')} placeholder={T.phonePh} style={inp} /></Field>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <Field label={T.whatsapp}><input value={form.whatsapp} onChange={set('whatsapp')} placeholder={T.whatsappPh} style={inp} /></Field>
