@@ -784,9 +784,11 @@ export class CustomersService {
       throw new NotFoundException('客户不存在');
     }
     const current = parseAttachments(existing[0].attachments);
+    // multer 对非 ASCII 文件名按 latin1 解码，需转回 utf8（中文文件名不乱码）
+    const originalName = Buffer.from(file.originalname || '', 'latin1').toString('utf8');
     current.push({
       url: '/uploads/' + file.filename,
-      name: file.originalname || file.filename,
+      name: originalName || file.filename,
       size: file.size ?? 0,
       type: file.mimetype ?? '',
       uploadedAt: new Date().toISOString(),
