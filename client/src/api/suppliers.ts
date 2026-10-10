@@ -150,6 +150,28 @@ export async function downloadCsv(
   }
 }
 
+/** 导出 ZIP：商品数据 CSV + 商品图片 + 资料附件 + 使用说明 */
+export async function downloadZip(
+  params?: Record<string, string | undefined>
+): Promise<void> {
+  try {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params ?? {})) {
+      if (v) qs.set(k, v);
+    }
+    const s = qs.toString();
+    const { data } = await axiosForBackend.get<Blob>(
+      s ? `/api/suppliers/export/zip?${s}` : '/api/suppliers/export/zip',
+      { responseType: 'blob' }
+    );
+    const date = new Date().toISOString().slice(0, 10);
+    saveBlob(data, `supplier-products-${date}.zip`);
+  } catch (error) {
+    logger.error('导出供应商商品 ZIP 失败', error as Error);
+    throw error;
+  }
+}
+
 export async function reject(id: string, reason: string): Promise<SupplierProduct> {
   try {
     const { data } = await axiosForBackend.post<SupplierProduct>(

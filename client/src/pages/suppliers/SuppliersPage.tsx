@@ -261,9 +261,9 @@ const SuppliersPage = () => {
     });
   };
 
-  /** 导出当前筛选条件下的供应商商品 */
+  /** 导出当前筛选条件下的供应商商品（ZIP：数据+图片+附件） */
   const handleExportCsv = () => {
-    suppliersApi.downloadCsv({
+    suppliersApi.downloadZip({
       keyword,
       category: category && category !== 'all' ? category : undefined,
       status: statusFilter && statusFilter !== 'all' ? statusFilter : undefined,
@@ -312,7 +312,12 @@ const SuppliersPage = () => {
         category: r.category || undefined,
         price: r.price || undefined,
         unit: r.unit || undefined,
-        spec: r.spec || undefined,
+        spec: r.spec || undefined, // 网盘链接
+        productUrl: r.productUrl || undefined,
+        contactName: r.contactName || undefined,
+        contactPhone: r.contactPhone || undefined,
+        wechat: r.wechat || undefined,
+        address: r.address || undefined,
         remark: r.remark || undefined,
       }));
       const res = await suppliersApi.importItems(items);
@@ -388,7 +393,7 @@ const SuppliersPage = () => {
               className="inline-flex items-center gap-2 px-[14px] py-2 rounded-lg bg-white/15 border border-white/25 text-white text-sm font-medium backdrop-blur hover:bg-white/25 transition-all"
             >
               <Download className="size-4" />
-              <span>导出 CSV</span>
+              <span>导出（含图片）</span>
             </button>
             <button
               type="button"

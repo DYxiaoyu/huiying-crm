@@ -153,6 +153,42 @@ export class CustomersController {
     res.send(csv);
   }
 
+  @Get('export/zip')
+  async exportZip(
+    @Res() res: Response,
+    @CurrentEmployee() employee: { id: string; role?: string },
+    @Query('keyword') keyword?: string,
+    @Query('stage') stage?: string,
+    @Query('favoriteOnly') favoriteOnly?: string,
+    @Query('tag') tag?: string,
+    @Query('timeRange') timeRange?: string,
+  ): Promise<void> {
+    const stageFilter = stage && stage !== '' ? (stage as CustomerStage) : undefined;
+    const safeTimeRange = ['7d', '30d', '90d', '1y'].includes(timeRange ?? '')
+      ? timeRange as TimeRange
+      : undefined;
+    const zip = await this.customersService.exportZip(
+      {
+        page: 1,
+        pageSize: 100000,
+        keyword,
+        stage: stageFilter,
+        favoriteOnly: favoriteOnly === 'true',
+        tag: tag && tag !== '' ? tag : undefined,
+        timeRange: safeTimeRange,
+      },
+      employee.id,
+      employee.role === 'admin',
+    );
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="customers-${date}.zip"`,
+    );
+    res.send(zip);
+  }
+
   @Get('template')
   async downloadTemplate(@Res() res: Response): Promise<void> {
     const csv = this.customersService.templateCsv();

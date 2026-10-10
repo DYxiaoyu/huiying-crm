@@ -90,6 +90,20 @@ export function mapHeader(header: string): string {
     规格: 'spec',
     型号: 'spec',
     spec: 'spec',
+    网盘链接: 'spec',
+    网盘: 'spec',
+    商品链接: 'productUrl',
+    产品链接: 'productUrl',
+    productUrl: 'productUrl',
+    联系人: 'contactName',
+    联系人姓名: 'contactName',
+    contactName: 'contactName',
+    联系人电话: 'contactPhone',
+    contactPhone: 'contactPhone',
+    微信: 'wechat',
+    wechat: 'wechat',
+    地址: 'address',
+    address: 'address',
   };
   return map[h] ?? '';
 }

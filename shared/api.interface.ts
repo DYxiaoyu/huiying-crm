@@ -296,7 +296,12 @@ export interface ImportSupplierItem {
   category?: string;
   price?: string;
   unit?: string;
-  spec?: string;
+  spec?: string; // 网盘链接（复用规格字段存储）
+  productUrl?: string;
+  contactName?: string;
+  contactPhone?: string;
+  wechat?: string;
+  address?: string;
   remark?: string;
 }
 

@@ -101,6 +101,37 @@ export class SuppliersController {
     res.send(csv);
   }
 
+  @Get('export/zip')
+  async exportZip(
+    @Res() res: Response,
+    @Query('keyword') keyword?: string,
+    @Query('category') category?: string,
+    @Query('status') status?: string,
+    @Query('source') source?: string,
+  ): Promise<void> {
+    const safeStatus: SupplierStatus | undefined =
+      status === 'pending' || status === 'approved' || status === 'rejected'
+        ? (status as SupplierStatus)
+        : undefined;
+    const safeSource: 'form' | 'admin' | undefined =
+      source === 'form' || source === 'admin' ? source : undefined;
+    const zip = await this.suppliersService.exportZip({
+      page: 1,
+      pageSize: 100000,
+      keyword,
+      category,
+      status: safeStatus,
+      source: safeSource,
+    });
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="supplier-products-${date}.zip"`,
+    );
+    res.send(zip);
+  }
+
   @Get('template')
   async downloadTemplate(@Res() res: Response): Promise<void> {
     const csv = this.suppliersService.templateCsv();

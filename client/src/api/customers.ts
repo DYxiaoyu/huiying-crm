@@ -178,6 +178,28 @@ export async function downloadCsv(
   }
 }
 
+/** 导出客户 ZIP：客户数据 CSV + 使用说明 */
+export async function downloadZip(
+  params?: Record<string, string | undefined>
+): Promise<void> {
+  try {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params ?? {})) {
+      if (v) qs.set(k, v);
+    }
+    const s = qs.toString();
+    const { data } = await axiosForBackend.get<Blob>(
+      s ? `/api/customers/export/zip?${s}` : '/api/customers/export/zip',
+      { responseType: 'blob' }
+    );
+    const date = new Date().toISOString().slice(0, 10);
+    saveBlob(data, `customers-${date}.zip`);
+  } catch (error) {
+    logger.error('导出客户 ZIP 失败', error as Error);
+    throw error;
+  }
+}
+
 export async function importCustomers(
   items: ImportCustomerItem[]
 ): Promise<ImportResult> {

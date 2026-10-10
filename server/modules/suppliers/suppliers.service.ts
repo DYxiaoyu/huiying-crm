@@ -9,6 +9,9 @@ import { DRIZZLE_DATABASE } from '@server/database/database.module';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { supplierProducts } from '@server/database/schema';
 import { eq, and, count, desc, asc, ilike, or, sql } from 'drizzle-orm';
+import archiver from 'archiver';
+import { existsSync } from 'fs';
+import * as path from 'path';
 import type {
   SupplierProduct,
   SupplierListResponse,
@@ -118,17 +121,113 @@ export class SuppliersService {
 
   /** 导出当前筛选条件下的供应商商品（列与导入模板对齐，另加状态/来源/时间） */
   async exportCsv(params: ListParams): Promise<string> {
+    const rows = await this.queryExportRows(params);
+    return this.buildExportCsv(rows);
+  }
+
+  /** 导出 ZIP：商品数据 CSV + 商品图片 + 资料附件 + 使用说明 */
+  async exportZip(params: ListParams): Promise<Buffer> {
+    const rows = await this.queryExportRows(params);
+    const csv = this.buildExportCsv(rows);
+    const uploadsDir = process.env.UPLOAD_DIR || '/app/uploads';
+
+    const manifest: string[] = [
+      '供应商商品导出说明',
+      '',
+      `导出时间：${new Date().toISOString()}`,
+      `商品数量：${rows.length}`,
+      '',
+      '商品数据.csv —— 全部商品表格数据（含网盘链接/商品链接/联系人等）',
+      '图片/ —— 每个商品对应的商品图片，文件名前缀=CSV 行号（第2行起第N行）',
+      '附件/ —— 每个商品对应的资料文件（PDF/压缩包等），同样以行号为前缀',
+      '',
+      '说明：base64 内嵌的旧图片无法单独打包，已包含在 CSV 备注中，可忽略；',
+      '      磁盘上已不存在的文件会跳过，不影响其他文件导出。',
+    ];
+
+    return new Promise((resolve, reject) => {
+      const archive = archiver('zip', { zlib: { level: 6 } });
+      const chunks: Buffer[] = [];
+      archive.on('data', (chunk) => chunks.push(chunk));
+      archive.on('end', () => resolve(Buffer.concat(chunks)));
+      archive.on('error', reject);
+
+      archive.append(csv, { name: '商品数据.csv' });
+
+      let index = 0;
+      for (const row of rows) {
+        index++;
+        const prefix = String(index).padStart(3, '0');
+        const productTag = `${prefix}_${(row.productName || '商品').slice(0, 30)}`;
+
+        // 商品图片（磁盘路径 /uploads/xxx）
+        if (row.images) {
+          try {
+            const images = JSON.parse(row.images);
+            if (Array.isArray(images)) {
+              images.forEach((img, i) => {
+                const p = typeof img === 'string' ? img : '';
+                if (p.startsWith('/uploads/')) {
+                  const name = path.basename(p);
+                  const fp = path.join(uploadsDir, name);
+                  if (existsSync(fp)) {
+                    archive.file(fp, { name: `图片/${productTag}_${i + 1}_${name}` });
+                  }
+                }
+              });
+            }
+          } catch {
+            // 忽略解析失败
+          }
+        }
+
+        // 资料附件
+        if (row.files) {
+          try {
+            const files = JSON.parse(row.files);
+            if (Array.isArray(files)) {
+              files.forEach((f, i) => {
+                const url = typeof f === 'object' && f !== null ? (f.url || f.data) : f;
+                const p = typeof url === 'string' ? url : '';
+                if (p.startsWith('/uploads/')) {
+                  const name = path.basename(p);
+                  const fp = path.join(uploadsDir, name);
+                  if (existsSync(fp)) {
+                    const orig = typeof f === 'object' && f !== null && typeof f.name === 'string'
+                      ? f.name
+                      : name;
+                    archive.file(fp, { name: `附件/${productTag}_${i + 1}_${orig}` });
+                  }
+                }
+              });
+            }
+          } catch {
+            // 忽略解析失败
+          }
+        }
+      }
+
+      archive.append(manifest.join('\r\n'), { name: '使用说明.txt' });
+      archive.finalize();
+    });
+  }
+
+  private async queryExportRows(
+    params: ListParams,
+  ): Promise<Array<typeof supplierProducts.$inferSelect>> {
     const conditions = this.buildListConditions(params);
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    const rows = await this.db
+    return this.db
       .select()
       .from(supplierProducts)
       .where(whereClause)
       .orderBy(desc(supplierProducts.updatedAt));
+  }
 
+  private buildExportCsv(rows: Array<typeof supplierProducts.$inferSelect>): string {
     const headers = [
-      '商品名称', '供应商名称', '分类', '价格', '单位', '规格型号', '备注',
-      '商品链接', '网盘链接', '联系人', '电话', '微信', '地址',
+      '商品名称', '供应商名称', '分类', '价格', '单位', '网盘链接', '商品链接', '附件文件',
+      '联系人', '联系人电话', '微信', '地址', '备注',
       '状态', '来源', '创建时间',
     ];
     const statusNameMap: Record<string, string> = {
@@ -163,14 +262,14 @@ export class SuppliersService {
         escapeCsv(row.category),
         escapeCsv(row.price),
         escapeCsv(row.unit),
-        escapeCsv(row.spec),
-        escapeCsv(row.remark),
-        escapeCsv(row.productUrl),
-        escapeCsv(parseJsonList(row.files)),
+        escapeCsv(row.spec), // 网盘链接（复用规格字段存储）
+        escapeCsv(row.productUrl), // 商品链接
+        escapeCsv(parseJsonList(row.files)), // 附件文件
         escapeCsv(row.contactName),
         escapeCsv(row.contactPhone),
         escapeCsv(row.wechat),
         escapeCsv(row.address),
+        escapeCsv(row.remark),
         escapeCsv(statusNameMap[row.status] ?? row.status),
         escapeCsv(row.submitKey ? '供应商表单' : '后台添加'),
         escapeCsv(row.createdAt.toISOString()),
@@ -181,14 +280,22 @@ export class SuppliersService {
 
   /** 供应商商品导入模板：表头 + 一行示例 */
   templateCsv(): string {
-    const headers = ['商品名称', '供应商名称', '分类', '价格', '单位', '规格型号', '备注'];
+    const headers = [
+      '商品名称', '供应商名称', '分类', '价格', '单位', '网盘链接', '商品链接',
+      '联系人', '联系人电话', '微信', '地址', '备注',
+    ];
     const example = [
       '示例商品',
       '示例供应商有限公司',
       '电动工具',
       '面议',
       '台',
-      '型号可留空',
+      '如：百度网盘 / 阿里云盘 / 夸克网盘 链接',
+      'https://example.com/product',
+      '张三',
+      '13800138000',
+      'zhangsan_wechat',
+      '江苏省南通市崇川区',
       '备注可留空',
     ];
     return '\uFEFF' + headers.join(',') + '\r\n' + example.join(',');
@@ -356,7 +463,12 @@ export class SuppliersService {
         category: item.category?.trim() || null,
         price: item.price?.trim() || null,
         unit: item.unit?.trim() || null,
-        spec: item.spec?.trim() || null,
+        spec: item.spec?.trim() || null, // 网盘链接
+        productUrl: item.productUrl?.trim() || null,
+        contactName: item.contactName?.trim() || null,
+        contactPhone: item.contactPhone?.trim() || null,
+        wechat: item.wechat?.trim() || null,
+        address: item.address?.trim() || null,
         remark: item.remark?.trim() || null,
         status: 'approved',
         employeeId,

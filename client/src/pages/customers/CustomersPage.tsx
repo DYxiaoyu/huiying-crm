@@ -461,8 +461,8 @@ const CustomersPage = () => {
   };
 
   const handleExportCsv = () => {
-    // 导出当前筛选条件下的客户（搜索/阶段/标签/时间/收藏）
-    customersApi.downloadCsv({
+    // 导出当前筛选条件下的客户（搜索/阶段/标签/时间/收藏）→ ZIP
+    customersApi.downloadZip({
       keyword: keyword || undefined,
       stage: stage || undefined,
       tag: tag || undefined,
@@ -591,7 +591,7 @@ const CustomersPage = () => {
               className="inline-flex items-center gap-2 px-[14px] py-2 rounded-lg bg-white/15 border border-white/25 text-white text-sm font-medium backdrop-blur hover:bg-white/25 transition-all"
             >
               <Download className="size-4" />
-              <span>导出 CSV</span>
+              <span>导出数据</span>
             </button>
             <button
               type="button"

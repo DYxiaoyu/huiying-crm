@@ -10,6 +10,7 @@ import { DRIZZLE_DATABASE } from '@server/database/database.module';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { customers, followUps } from '@server/database/schema';
 import { eq, and, count, desc, asc, ilike, or, max, ne, inArray, isNull, gte } from 'drizzle-orm';
+import archiver from 'archiver';
 import type {
   Customer,
   CustomerListResponse,
@@ -475,6 +476,35 @@ export class CustomersService {
     }
 
     return '\uFEFF' + lines.join('\r\n');
+  }
+
+  /** 导出 ZIP：客户数据 CSV + 使用说明 */
+  async exportZip(
+    params: ListParams,
+    employeeId: string,
+    isAdmin: boolean,
+  ): Promise<Buffer> {
+    const csv = await this.exportCsv(params, employeeId, isAdmin);
+    const manifest: string[] = [
+      '客户数据导出说明',
+      '',
+      `导出时间：${new Date().toISOString()}`,
+      '',
+      '客户数据.csv —— 全部客户信息（含最近跟进记录/创建时间/更新时间）',
+      '',
+      '说明：客户暂无独立图片/附件字段；意向表单收集的 WhatsApp/Telegram/邮箱/',
+      '      地址/需求/意向产品/预算等信息按分行格式保存在"备注"列中。',
+    ];
+    return new Promise((resolve, reject) => {
+      const archive = archiver('zip', { zlib: { level: 6 } });
+      const chunks: Buffer[] = [];
+      archive.on('data', (chunk) => chunks.push(chunk));
+      archive.on('end', () => resolve(Buffer.concat(chunks)));
+      archive.on('error', reject);
+      archive.append(csv, { name: '客户数据.csv' });
+      archive.append(manifest.join('\r\n'), { name: '使用说明.txt' });
+      archive.finalize();
+    });
   }
 
   /** 客户导入模板：表头 + 一行示例（用户照格式填写，可删除示例行） */
