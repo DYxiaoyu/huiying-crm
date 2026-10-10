@@ -462,31 +462,21 @@ const CustomersPage = () => {
 
   const handleExportCsv = () => {
     // 导出当前筛选条件下的客户（搜索/阶段/标签/时间/收藏）
-    const url = customersApi.getCsvUrl({
+    customersApi.downloadCsv({
       keyword: keyword || undefined,
       stage: stage || undefined,
       tag: tag || undefined,
       timeRange: timeRange || undefined,
       favoriteOnly: favoriteOnly ? 'true' : undefined,
+    }).catch(() => {
+      toast.error('导出失败，请重试');
     });
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'customers.csv';
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
   };
 
   const handleDownloadTemplate = () => {
-    const url = customersApi.getTemplateUrl();
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'customers-import-template.csv';
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    customersApi.downloadTemplate().catch(() => {
+      toast.error('模板下载失败，请重试');
+    });
   };
 
   // 图片上传（占位：按钮已就位，上传能力待接入）
@@ -500,14 +490,9 @@ const CustomersPage = () => {
   };
 
   const handleExportBackup = () => {
-    const url = customersApi.getBackupUrl();
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'customers-backup.json';
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    customersApi.downloadBackup().catch(() => {
+      toast.error('备份导出失败，请重试');
+    });
   };
 
   /** 导入 CSV：解析文件 → 批量创建客户 */

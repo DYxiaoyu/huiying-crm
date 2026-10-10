@@ -117,6 +117,66 @@ export function getBackupUrl(): string {
   return '/api/customers/export/backup';
 }
 
+/** 导出客户完整备份 JSON（带登录 token） */
+export async function downloadBackup(): Promise<void> {
+  try {
+    const { data } = await axiosForBackend.get<Blob>(
+      '/api/customers/export/backup',
+      { responseType: 'blob' }
+    );
+    saveBlob(data, 'customers-backup.json');
+  } catch (error) {
+    logger.error('导出客户备份失败', error as Error);
+    throw error;
+  }
+}
+
+/** 触发浏览器下载 Blob（带登录 token，替代 <a href> 直跳导致 401 的方式） */
+function saveBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+/** 下载客户导入模板 CSV */
+export async function downloadTemplate(): Promise<void> {
+  try {
+    const { data } = await axiosForBackend.get<Blob>('/api/customers/template', {
+      responseType: 'blob',
+    });
+    saveBlob(data, 'customers-import-template.csv');
+  } catch (error) {
+    logger.error('下载客户导入模板失败', error as Error);
+    throw error;
+  }
+}
+
+/** 导出当前筛选条件下的客户 CSV */
+export async function downloadCsv(
+  params?: Record<string, string | undefined>
+): Promise<void> {
+  try {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params ?? {})) {
+      if (v) qs.set(k, v);
+    }
+    const s = qs.toString();
+    const { data } = await axiosForBackend.get<Blob>(
+      s ? `/api/customers/export/csv?${s}` : '/api/customers/export/csv',
+      { responseType: 'blob' }
+    );
+    saveBlob(data, 'customers.csv');
+  } catch (error) {
+    logger.error('导出客户 CSV 失败', error as Error);
+    throw error;
+  }
+}
+
 export async function importCustomers(
   items: ImportCustomerItem[]
 ): Promise<ImportResult> {

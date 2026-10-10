@@ -103,6 +103,52 @@ export async function approve(id: string): Promise<SupplierProduct> {
   }
 }
 
+/** 触发浏览器下载 Blob（带登录 token，替代 <a href> 直跳导致 401 的方式） */
+function saveBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+/** 下载供应商商品导入模板 CSV */
+export async function downloadTemplate(): Promise<void> {
+  try {
+    const { data } = await axiosForBackend.get<Blob>('/api/suppliers/template', {
+      responseType: 'blob',
+    });
+    saveBlob(data, 'supplier-products-import-template.csv');
+  } catch (error) {
+    logger.error('下载供应商导入模板失败', error as Error);
+    throw error;
+  }
+}
+
+/** 导出当前筛选条件下的供应商商品 CSV */
+export async function downloadCsv(
+  params?: Record<string, string | undefined>
+): Promise<void> {
+  try {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params ?? {})) {
+      if (v) qs.set(k, v);
+    }
+    const s = qs.toString();
+    const { data } = await axiosForBackend.get<Blob>(
+      s ? `/api/suppliers/export/csv?${s}` : '/api/suppliers/export/csv',
+      { responseType: 'blob' }
+    );
+    saveBlob(data, 'supplier-products.csv');
+  } catch (error) {
+    logger.error('导出供应商商品 CSV 失败', error as Error);
+    throw error;
+  }
+}
+
 export async function reject(id: string, reason: string): Promise<SupplierProduct> {
   try {
     const { data } = await axiosForBackend.post<SupplierProduct>(

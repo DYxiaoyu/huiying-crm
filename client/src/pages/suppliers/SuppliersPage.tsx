@@ -256,30 +256,21 @@ const SuppliersPage = () => {
 
   /** 下载供应商商品导入模板 */
   const handleDownloadTemplate = () => {
-    const a = document.createElement('a');
-    a.href = '/api/suppliers/template';
-    a.download = 'supplier-products-import-template.csv';
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    suppliersApi.downloadTemplate().catch(() => {
+      toast.error('模板下载失败，请重试');
+    });
   };
 
   /** 导出当前筛选条件下的供应商商品 */
   const handleExportCsv = () => {
-    const qs = new URLSearchParams();
-    if (keyword) qs.set('keyword', keyword);
-    if (category && category !== 'all') qs.set('category', category);
-    if (statusFilter && statusFilter !== 'all') qs.set('status', statusFilter);
-    if (sourceFilter && sourceFilter !== 'all') qs.set('source', sourceFilter);
-    const s = qs.toString();
-    const a = document.createElement('a');
-    a.href = s ? `/api/suppliers/export/csv?${s}` : '/api/suppliers/export/csv';
-    a.download = 'supplier-products.csv';
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    suppliersApi.downloadCsv({
+      keyword,
+      category: category && category !== 'all' ? category : undefined,
+      status: statusFilter && statusFilter !== 'all' ? statusFilter : undefined,
+      source: sourceFilter && sourceFilter !== 'all' ? sourceFilter : undefined,
+    }).catch(() => {
+      toast.error('导出失败，请重试');
+    });
   };
 
   const handleRejectConfirm = async () => {    if (!rejectingProduct) return;
